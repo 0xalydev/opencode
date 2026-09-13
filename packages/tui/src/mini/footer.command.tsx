@@ -4,7 +4,6 @@ import { useKeyboard, useRenderer, useTerminalDimensions, type JSX } from "@open
 import fuzzysort from "fuzzysort"
 import { createEffect, createMemo, createSignal, type Accessor } from "solid-js"
 import { Keymap } from "../context/keymap"
-import { useMiniLanguage, type MiniLanguage } from "./language"
 import { Config } from "../config"
 import { OneCellSpinner } from "../component/one-cell-spinner"
 import { SEED_MONO, WORK_SPINNERS } from "../ui/one-cell-motion"
@@ -119,20 +118,20 @@ function countLabel(count: number, total: number, query: string) {
   return `${count}/${total}`
 }
 
-function subagentStatusLabel(status: FooterSubagentTab["status"], language: MiniLanguage) {
+function subagentStatusLabel(status: FooterSubagentTab["status"]) {
   if (status === "completed") {
-    return language.t("tui.mini.done")
+    return "done"
   }
 
   if (status === "cancelled") {
-    return language.t("tui.mini.cancelled")
+    return "cancelled"
   }
 
   if (status === "error") {
-    return language.t("tui.mini.error")
+    return "error"
   }
 
-  return language.t("tui.mini.running")
+  return "running"
 }
 
 function match<T extends PanelEntry>(query: string, entries: T[]) {
@@ -420,33 +419,30 @@ export function RunCommandMenuBody(props: {
   mono?: boolean
 }) {
   const skills = createMemo(() => (props.commands() ?? []).filter((item) => item.source === "skill"))
-  const language = useMiniLanguage()
   const activeSubagentCount = createMemo(() => props.subagents().filter((item) => item.status === "running").length)
   const entries = createMemo<CommandEntry[]>(() => {
     const session: CommandEntry[] = [
       {
         action: "editor",
-        category: language.t("tui.mini.session"),
-        display: language.t("tui.mini.openEditor"),
+        category: "Session",
+        display: "Open editor",
         footer: "/editor",
         keywords: "editor compose draft external editor",
       },
       {
         action: "status",
-        category: language.t("tui.mini.session"),
-        display: language.t("tui.mini.showStatus"),
+        category: "Session",
+        display: "Show status",
         keywords: "status activity model context usage footer",
       },
       ...(props.subagents().length > 0
         ? [
             {
               action: "subagent" as const,
-              category: language.t("tui.mini.session"),
-              display: language.t("tui.mini.viewSubagents"),
+              category: "Session",
+              display: "View subagents",
               footer:
-                activeSubagentCount() > 0
-                  ? language.t("tui.mini.activeCount", { count: activeSubagentCount() })
-                  : language.t("tui.mini.recentCount", { count: props.subagents().length }),
+                activeSubagentCount() > 0 ? `${activeSubagentCount()} active` : `${props.subagents().length} recent`,
               keywords: props
                 .subagents()
                 .map((item) => `${item.label} ${item.description} ${item.title ?? ""}`)
@@ -456,17 +452,17 @@ export function RunCommandMenuBody(props: {
         : []),
       {
         action: "slash",
-        category: language.t("tui.mini.session"),
+        category: "Session",
         name: "compact",
-        display: language.t("tui.mini.compactSession"),
+        display: "Compact session",
         footer: "/compact",
         keywords: "compact session context",
       },
       {
         action: "slash",
-        category: language.t("tui.mini.session"),
+        category: "Session",
         name: "new",
-        display: language.t("tui.mini.newSession"),
+        display: "New session",
         footer: "/new",
         keywords: "new session clear",
       },
@@ -476,8 +472,8 @@ export function RunCommandMenuBody(props: {
         ? [
             {
               action: "skill" as const,
-              category: language.t("tui.mini.prompt"),
-              display: language.t("tui.mini.skills"),
+              category: "Prompt",
+              display: "Skills",
               footer: "/skills",
               keywords: `skill skills ${skills()
                 .map((item) => `${item.name} ${item.description ?? ""}`)
@@ -488,21 +484,21 @@ export function RunCommandMenuBody(props: {
     const agent: CommandEntry[] = [
       {
         action: "agent",
-        category: language.t("tui.mini.agent"),
-        display: language.t("tui.mini.switchAgent"),
+        category: "Agent",
+        display: "Switch agent",
       },
       {
         action: "model",
-        category: language.t("tui.mini.agent"),
-        display: language.t("tui.mini.switchModel"),
+        category: "Agent",
+        display: "Switch model",
       },
       ...(props.queued().length > 0
         ? [
             {
               action: "queued" as const,
-              category: language.t("tui.mini.agent"),
-              display: language.t("tui.mini.viewPending"),
-              footer: language.t("tui.mini.pendingCount", { count: props.queued().length }),
+              category: "Agent",
+              display: "View pending prompts",
+              footer: `${props.queued().length} pending`,
               keywords: props
                 .queued()
                 .map((item) => item.prompt.text)
@@ -512,8 +508,8 @@ export function RunCommandMenuBody(props: {
         : []),
       {
         action: "variant.cycle",
-        category: language.t("tui.mini.agent"),
-        display: language.t("tui.mini.variantCycle"),
+        category: "Agent",
+        display: "Variant cycle",
         footer: props.variantCycle,
         keywords: "variant cycle",
       },
@@ -521,8 +517,8 @@ export function RunCommandMenuBody(props: {
         ? [
             {
               action: "variant.list" as const,
-              category: language.t("tui.mini.agent"),
-              display: language.t("tui.mini.switchVariant"),
+              category: "Agent",
+              display: "Switch model variant",
               keywords: `variant variants ${props.variants().join(" ")}`,
             },
           ]
@@ -534,25 +530,19 @@ export function RunCommandMenuBody(props: {
       ...agent,
       {
         action: "clear",
-        category: language.t("tui.mini.system"),
-        display: language.t("tui.mini.clearScreen"),
+        category: "System",
+        display: "Clear screen",
         footer: props.clearShortcut,
         keywords: "clear screen cls redraw",
       },
       {
         action: "settings",
-        category: language.t("tui.mini.system"),
-        display: language.t("tui.mini.settings"),
+        category: "System",
+        display: "Settings",
         footer: "/settings",
         keywords: "/settings settings preferences configuration",
       },
-      {
-        action: "exit",
-        category: language.t("tui.mini.system"),
-        display: language.t("tui.mini.exit"),
-        footer: "/exit",
-        keywords: "/exit exit",
-      },
+      { action: "exit", category: "System", display: "Exit", footer: "/exit", keywords: "/exit exit" },
     ]
   })
   const pick = (item: CommandEntry) => {
@@ -632,13 +622,13 @@ export function RunCommandMenuBody(props: {
 
   return (
     <PanelShell
-      title={language.t("tui.mini.commands")}
+      title="Commands"
       layout={controller.layout()}
       countVisible={false}
       query={controller.query()}
       count={controller.items().length}
       total={entries().length}
-      placeholder={language.t("tui.mini.search")}
+      placeholder="Search"
       theme={props.theme}
       inputRef={controller.inputRef}
       onQuery={controller.setQuery}
@@ -652,7 +642,7 @@ export function RunCommandMenuBody(props: {
         rows={controller.menu.limit}
         limit={controller.menu.limit()}
         compact={controller.layout().compact}
-        empty={language.t("tui.mini.noResults")}
+        empty="No results found"
         border={false}
         paddingLeft={panelPad(props.mono)}
         paddingRight={panelPad(props.mono)}
@@ -673,7 +663,6 @@ export function RunAgentSelectBody(props: {
   onSelect: (agent: string) => void
   mono?: boolean
 }) {
-  const language = useMiniLanguage()
   const entries = createMemo<AgentEntry[]>(() =>
     props
       .agents()
@@ -682,7 +671,7 @@ export function RunAgentSelectBody(props: {
         category: "",
         display: agent.id,
         description: agent.description,
-        footer: props.current() === agent.id ? language.t("tui.mini.current") : undefined,
+        footer: props.current() === agent.id ? "current" : undefined,
         footerTone: "selection" as const,
         keywords: `${agent.id} ${agent.name} ${agent.description ?? ""}`,
         id: agent.id,
@@ -699,12 +688,12 @@ export function RunAgentSelectBody(props: {
 
   return (
     <PanelShell
-      title={language.t("tui.mini.selectAgent")}
+      title="Select agent"
       layout={controller.layout()}
       query={controller.query()}
       count={controller.items().length}
       total={entries().length}
-      placeholder={language.t("tui.mini.search")}
+      placeholder="Search"
       theme={props.theme}
       inputRef={controller.inputRef}
       onQuery={controller.setQuery}
@@ -718,7 +707,7 @@ export function RunAgentSelectBody(props: {
         rows={controller.menu.limit}
         limit={controller.menu.limit()}
         compact={controller.layout().compact}
-        empty={language.t("tui.mini.noAgents")}
+        empty="No agents found"
         border={false}
         paddingLeft={panelPad(props.mono)}
         paddingRight={panelPad(props.mono)}
@@ -739,88 +728,74 @@ export function RunSettingsBody(props: {
   animations?: boolean
 }) {
   const [saving, setSaving] = createSignal<SettingEntry["key"]>()
-  const language = useMiniLanguage()
   const entries = createMemo<SettingEntry[]>(() => [
     {
-      category: language.t("tui.mini.transcript"),
-      display: language.t("tui.mini.verbosity"),
-      footer:
-        saving() === "verbosity"
-          ? language.t("tui.mini.saving")
-          : verbosityLabel(matchMiniVerbosity(props.settings()), language),
+      category: "Transcript",
+      display: "Verbosity",
+      footer: saving() === "verbosity" ? "saving" : verbosityLabel(matchMiniVerbosity(props.settings())),
       footerTone: saving() === "verbosity" ? "running" : "selection",
       keywords: `verbosity quiet default everything custom noise ${verbosityLabel(matchMiniVerbosity(props.settings()))}`,
       key: "verbosity",
     },
     {
-      category: language.t("tui.mini.transcript"),
-      display: language.t("tui.mini.thinking"),
-      footer:
-        saving() === "thinking" ? language.t("tui.mini.saving") : language.t(`tui.mini.${props.settings().thinking}`),
+      category: "Transcript",
+      display: "Thinking",
+      footer: saving() === "thinking" ? "saving" : props.settings().thinking,
       footerTone: saving() === "thinking" ? "running" : "selection",
       keywords: `thinking reasoning ${props.settings().thinking}`,
       key: "thinking",
     },
     {
-      category: language.t("tui.mini.transcript"),
-      display: language.t("tui.mini.tools"),
-      footer: saving() === "tools" ? language.t("tui.mini.saving") : language.t(`tui.mini.${props.settings().tools}`),
+      category: "Transcript",
+      display: "Tools",
+      footer: saving() === "tools" ? "saving" : props.settings().tools,
       footerTone: saving() === "tools" ? "running" : "selection",
       keywords: `tools files skills activity work steps intermediate ${props.settings().tools}`,
       key: "tools",
     },
     {
-      category: language.t("tui.mini.transcript"),
-      display: language.t("tui.mini.shell"),
-      footer:
-        saving() === "shell_output"
-          ? language.t("tui.mini.saving")
-          : language.t(`tui.mini.${props.settings().shell_output}`),
+      category: "Transcript",
+      display: "Shell",
+      footer: saving() === "shell_output" ? "saving" : props.settings().shell_output,
       footerTone: saving() === "shell_output" ? "running" : "selection",
       keywords: `shell tool command output ${props.settings().shell_output}`,
       key: "shell_output",
     },
     {
-      category: language.t("tui.mini.transcript"),
-      display: language.t("tui.mini.turnSummary"),
-      footer:
-        saving() === "turn_summary"
-          ? language.t("tui.mini.saving")
-          : language.t(`tui.mini.${props.settings().turn_summary}`),
+      category: "Transcript",
+      display: "Turn summary",
+      footer: saving() === "turn_summary" ? "saving" : props.settings().turn_summary,
       footerTone: saving() === "turn_summary" ? "running" : "selection",
       keywords: `turn summary agent model duration ${props.settings().turn_summary}`,
       key: "turn_summary",
     },
     {
-      category: language.t("tui.mini.terminal"),
-      display: language.t("tui.mini.footerDetails"),
-      footer: saving() === "footer" ? language.t("tui.mini.saving") : language.t(`tui.mini.${props.settings().footer}`),
+      category: "Terminal",
+      display: "Footer details",
+      footer: saving() === "footer" ? "saving" : props.settings().footer,
       footerTone: saving() === "footer" ? "running" : "selection",
       keywords: `footer status activity model context usage ${props.settings().footer}`,
       key: "footer",
     },
     {
-      category: language.t("tui.mini.terminal"),
-      display: language.t("tui.mini.splash"),
-      footer: saving() === "splash" ? language.t("tui.mini.saving") : language.t(`tui.mini.${props.settings().splash}`),
+      category: "Terminal",
+      display: "Splash",
+      footer: saving() === "splash" ? "saving" : props.settings().splash,
       footerTone: saving() === "splash" ? "running" : "selection",
       keywords: `splash entry exit banner ${props.settings().splash}`,
       key: "splash",
     },
     {
-      category: language.t("tui.mini.terminal"),
-      display: language.t("tui.mini.monochrome"),
-      footer:
-        saving() === "mono"
-          ? language.t("tui.mini.saving")
-          : language.t(props.settings().mono ? "tui.mini.on" : "tui.mini.off"),
+      category: "Terminal",
+      display: "Monochrome UI",
+      footer: saving() === "mono" ? "saving" : props.settings().mono ? "on" : "off",
       footerTone: saving() === "mono" ? "running" : "selection",
       keywords: `mono monochrome ascii legacy compat terminal ${props.settings().mono ? "on" : "off"}`,
       key: "mono",
     },
     {
-      category: language.t("tui.mini.terminal"),
-      display: language.t("tui.mini.workSpinner"),
+      category: "Terminal",
+      display: "Work spinner",
       icon: (color) => (
         <OneCellSpinner
           animation={props.mono ? SEED_MONO : WORK_SPINNERS[props.settings().work_spinner]}
@@ -832,8 +807,8 @@ export function RunSettingsBody(props: {
       ),
       footer:
         saving() === "work_spinner"
-          ? language.t("tui.mini.saving")
-          : language.t(`tui.mini.spinner.${props.settings().work_spinner}`),
+          ? "saving"
+          : props.settings().work_spinner.replace("block-", "").replaceAll("-", " "),
       footerTone: saving() === "work_spinner" ? "running" : "selection",
       keywords: `work spinner animation ${props.settings().work_spinner}`,
       key: "work_spinner",
@@ -878,17 +853,17 @@ export function RunSettingsBody(props: {
 
   return (
     <PanelShell
-      title={language.t("tui.mini.settings")}
+      title="Settings"
       layout={controller.layout()}
       countVisible={false}
       query={controller.query()}
       count={controller.items().length}
       total={entries().length}
-      placeholder={language.t("tui.mini.search")}
+      placeholder="Search"
       theme={props.theme}
       inputRef={controller.inputRef}
       onQuery={controller.setQuery}
-      hint={language.t("tui.mini.changeHint")}
+      hint="left/right change"
       mono={props.mono}
     >
       <RunFooterMenu
@@ -899,7 +874,7 @@ export function RunSettingsBody(props: {
         rows={controller.menu.limit}
         limit={controller.menu.limit()}
         compact={controller.layout().compact}
-        empty={language.t("tui.mini.noSettings")}
+        empty="No settings found"
         border={false}
         paddingLeft={panelPad(props.mono)}
         paddingRight={panelPad(props.mono)}
@@ -922,7 +897,6 @@ export function RunSubagentSelectBody(props: {
   mono?: boolean
 }) {
   const [active, setActive] = createSignal(true)
-  const language = useMiniLanguage()
   const entries = createMemo<SubagentEntry[]>(() =>
     props
       .tabs()
@@ -933,7 +907,7 @@ export function RunSubagentSelectBody(props: {
           category: "",
           display: title,
           description: title === item.label ? undefined : item.label,
-          footer: subagentStatusLabel(item.status, language),
+          footer: subagentStatusLabel(item.status),
           footerTone:
             item.status === "running" || item.status === "error"
               ? item.status
@@ -964,16 +938,16 @@ export function RunSubagentSelectBody(props: {
 
   return (
     <PanelShell
-      title={language.t("tui.mini.selectSubagent")}
+      title="Select subagent"
       layout={controller.layout()}
       query={controller.query()}
       count={controller.items().length}
       total={entries().length}
-      placeholder={language.t("tui.mini.search")}
+      placeholder="Search"
       theme={props.theme}
       inputRef={controller.inputRef}
       onQuery={controller.setQuery}
-      hint={language.t(active() ? "tui.mini.showInactiveHint" : "tui.mini.showActiveHint")}
+      hint={`tab show ${active() ? "inactive" : "active"}`}
       mono={props.mono}
     >
       <RunFooterMenu
@@ -984,7 +958,7 @@ export function RunSubagentSelectBody(props: {
         rows={controller.menu.rows}
         limit={controller.menu.limit()}
         compact={controller.layout().compact}
-        empty={language.t("tui.mini.noSubagents")}
+        empty="No subagents found"
         border={false}
         paddingLeft={panelPad(props.mono)}
         paddingRight={panelPad(props.mono)}
@@ -1005,12 +979,11 @@ export function RunQueuedPromptSelectBody(props: {
   onRows?: (rows: number) => void
   mono?: boolean
 }) {
-  const language = useMiniLanguage()
   const entries = createMemo<QueuedPromptEntry[]>(() =>
     props.prompts().map((prompt) => ({
       category: "",
       display: prompt.prompt.text.replaceAll("\n", " "),
-      footer: language.t(prompt.delivery === "queue" ? "tui.mini.queued" : "tui.mini.steering"),
+      footer: prompt.delivery === "queue" ? "queued" : "steering",
       keywords: prompt.prompt.text,
       prompt,
     })),
@@ -1029,8 +1002,8 @@ export function RunQueuedPromptSelectBody(props: {
     commands: [
       {
         id: "queued_prompt.delete",
-        title: language.t("tui.mini.deletePending"),
-        group: language.t("tui.mini.prompt"),
+        title: "Delete pending prompt",
+        group: "Prompt",
         run() {
           const item = controller.items()[controller.menu.selected()]
           if (!item) return false
@@ -1042,22 +1015,18 @@ export function RunQueuedPromptSelectBody(props: {
 
   return (
     <PanelShell
-      title={language.t("tui.mini.pendingPrompts")}
+      title="Pending prompts"
       layout={controller.layout()}
       query={controller.query()}
       count={controller.items().length}
       total={entries().length}
-      placeholder={language.t("tui.mini.search")}
+      placeholder="Search"
       theme={props.theme}
       inputRef={controller.inputRef}
       onQuery={controller.setQuery}
       hint={[
-        language.t(
-          controller.items()[controller.menu.selected()]?.prompt.delivery === "steer"
-            ? "tui.mini.queueHint"
-            : "tui.mini.steerHint",
-        ),
-        deleteShortcut() ? language.t("tui.mini.deleteHint", { key: deleteShortcut() }) : undefined,
+        controller.items()[controller.menu.selected()]?.prompt.delivery === "steer" ? "enter queue" : "enter steer",
+        deleteShortcut() ? `${deleteShortcut()} delete` : undefined,
       ]
         .filter(Boolean)
         .join(" · ")}
@@ -1071,7 +1040,7 @@ export function RunQueuedPromptSelectBody(props: {
         rows={controller.menu.rows}
         limit={controller.menu.limit()}
         compact={controller.layout().compact}
-        empty={language.t("tui.mini.noPending")}
+        empty="No pending prompts"
         border={false}
         paddingLeft={panelPad(props.mono)}
         paddingRight={panelPad(props.mono)}
@@ -1090,7 +1059,6 @@ export function RunSkillSelectBody(props: {
   onSelect: (name: string) => void
   mono?: boolean
 }) {
-  const language = useMiniLanguage()
   const entries = createMemo<SkillEntry[]>(() =>
     (props.commands() ?? [])
       .filter((item) => item.source === "skill")
@@ -1112,12 +1080,12 @@ export function RunSkillSelectBody(props: {
 
   return (
     <PanelShell
-      title={language.t("tui.mini.skills")}
+      title="Skills"
       layout={controller.layout()}
       query={controller.query()}
       count={controller.items().length}
       total={entries().length}
-      placeholder={language.t("tui.mini.search")}
+      placeholder="Search"
       theme={props.theme}
       inputRef={controller.inputRef}
       onQuery={controller.setQuery}
@@ -1131,7 +1099,7 @@ export function RunSkillSelectBody(props: {
         rows={controller.menu.limit}
         limit={controller.menu.limit()}
         compact={controller.layout().compact}
-        empty={language.t(props.commands() ? "tui.mini.noSkills" : "tui.mini.skillsLoading")}
+        empty={props.commands() ? "No skills found" : "Skills loading"}
         border={false}
         paddingLeft={panelPad(props.mono)}
         paddingRight={panelPad(props.mono)}
@@ -1151,12 +1119,11 @@ export function RunVariantSelectBody(props: {
   onSelect: (variant: string | undefined) => void
   mono?: boolean
 }) {
-  const language = useMiniLanguage()
   const entries = createMemo<VariantEntry[]>(() => [
     {
       category: "",
-      display: language.t("tui.mini.default"),
-      footer: props.current() === undefined ? language.t("tui.mini.current") : undefined,
+      display: "Default",
+      footer: props.current() === undefined ? "current" : undefined,
       footerTone: "selection",
       keywords: "default",
       variant: undefined,
@@ -1165,7 +1132,7 @@ export function RunVariantSelectBody(props: {
     ...props.variants().map((variant) => ({
       category: "",
       display: variant,
-      footer: props.current() === variant ? language.t("tui.mini.current") : undefined,
+      footer: props.current() === variant ? "current" : undefined,
       footerTone: "selection" as const,
       keywords: variant,
       variant,
@@ -1182,12 +1149,12 @@ export function RunVariantSelectBody(props: {
 
   return (
     <PanelShell
-      title={language.t("tui.mini.selectVariant")}
+      title="Select variant"
       layout={controller.layout()}
       query={controller.query()}
       count={controller.items().length}
       total={entries().length}
-      placeholder={language.t("tui.mini.search")}
+      placeholder="Search"
       theme={props.theme}
       inputRef={controller.inputRef}
       onQuery={controller.setQuery}
@@ -1201,7 +1168,7 @@ export function RunVariantSelectBody(props: {
         rows={controller.menu.limit}
         limit={controller.menu.limit()}
         compact={controller.layout().compact}
-        empty={language.t("tui.mini.noResults")}
+        empty="No results found"
         border={false}
         paddingLeft={panelPad(props.mono)}
         paddingRight={panelPad(props.mono)}
@@ -1221,7 +1188,6 @@ export function RunModelSelectBody(props: {
   onSelect: (model: NonNullable<RunInput["model"]>) => void
   mono?: boolean
 }) {
-  const language = useMiniLanguage()
   const entries = createMemo<ModelEntry[]>(() =>
     (props.providers() ?? [])
       .flatMap((provider) =>
@@ -1231,9 +1197,9 @@ export function RunModelSelectBody(props: {
             const title = model.name ?? modelID
             const current = props.current()?.providerID === provider.id && props.current()?.modelID === modelID
             const footer = current
-              ? language.t("tui.mini.current")
+              ? "current"
               : model.cost?.input === 0 && provider.id === "opencode"
-                ? language.t("tui.mini.free")
+                ? "Free"
                 : title !== modelID
                   ? modelID
                   : undefined
@@ -1274,12 +1240,12 @@ export function RunModelSelectBody(props: {
 
   return (
     <PanelShell
-      title={language.t("tui.mini.selectModel")}
+      title="Select model"
       layout={controller.layout()}
       query={controller.query()}
       count={controller.items().length}
       total={entries().length}
-      placeholder={language.t("tui.mini.search")}
+      placeholder="Search"
       theme={props.theme}
       inputRef={controller.inputRef}
       onQuery={controller.setQuery}
@@ -1299,7 +1265,7 @@ export function RunModelSelectBody(props: {
         rows={controller.menu.limit}
         limit={controller.menu.limit()}
         compact={controller.layout().compact}
-        empty={language.t(props.providers() ? "tui.mini.noResults" : "tui.mini.modelsLoading")}
+        empty={props.providers() ? "No results found" : "Models loading"}
         border={false}
         paddingLeft={panelPad(props.mono)}
         paddingRight={panelPad(props.mono)}

@@ -37,7 +37,6 @@ import type {
 import { canonicalToolName, normalizeTool, toolOutputText, toolView } from "./tool"
 import { toolDisplayContent } from "../util/tool-display"
 import { isRecord } from "../util/record"
-import { defaultMiniLanguage, type MiniLanguage } from "./language"
 
 const CHILD_MESSAGE_LIMIT = 80
 const CHILD_FRAME_LIMIT = 80
@@ -46,6 +45,7 @@ const FAMILY_LIST_LIMIT = 100
 const FAMILY_DISCOVERY_CONCURRENCY = 8
 const BLOCKER_RETRY_INITIAL_MS = 50
 const BLOCKER_RETRY_MAX_MS = 2_000
+const FALLBACK_LABEL = "Subagent"
 
 type V2Event = EventSubscribeOutput
 
@@ -124,7 +124,6 @@ type ChildState = {
 }
 
 export type SubagentTrackerInput = {
-  language?: MiniLanguage
   sessionID: string
   thinking: boolean
   directory?: string
@@ -202,8 +201,6 @@ function tab(child: ChildState): FooterSubagentTab {
 }
 
 export function createSubagentTracker(input: SubagentTrackerInput): SubagentTracker {
-  const language = input.language ?? defaultMiniLanguage
-  const fallbackLabel = language.t("tui.mini.subagent")
   const children = new Map<string, ChildState>()
   // Live subagent tool calls in the parent, so tool.success metadata
   // can be joined with the call's input metadata.
@@ -233,7 +230,7 @@ export function createSubagentTracker(input: SubagentTrackerInput): SubagentTrac
     if (!existing && children.size >= FAMILY_LIST_LIMIT) return
     const child: ChildState = existing ?? {
       sessionID,
-      label: fallbackLabel,
+      label: FALLBACK_LABEL,
       description: "",
       status: "running",
       background: false,
@@ -303,7 +300,7 @@ export function createSubagentTracker(input: SubagentTrackerInput): SubagentTrac
         phase: "start",
         messageID,
       })
-    for (const commit of userImageCommits(messageID, prompt.files, language))
+    for (const commit of userImageCommits(messageID, prompt.files))
       setFrame(child, sourceKey(messageID, commit.partID), commit)
     return true
   }
@@ -340,8 +337,7 @@ export function createSubagentTracker(input: SubagentTrackerInput): SubagentTrac
       partial ? `${frame}:final` : frame,
       toolCommit(part, messageID, toolFinalPhase(part), undefined, input.directory),
     )
-    for (const commit of toolImageCommits(part, messageID, language))
-      setFrame(child, sourceKey(messageID, commit.partID), commit)
+    for (const commit of toolImageCommits(part, messageID)) setFrame(child, sourceKey(messageID, commit.partID), commit)
   }
 
   const rebuild = (child: ChildState, messages: SessionMessageInfo[]) => {
@@ -680,7 +676,7 @@ export function createSubagentTracker(input: SubagentTrackerInput): SubagentTrac
     }
     if (event.type === "session.step.started") {
       touch(child, event.created)
-      if (child.label === fallbackLabel && event.data.agent) child.label = Locale.titlecase(event.data.agent)
+      if (child.label === FALLBACK_LABEL && event.data.agent) child.label = Locale.titlecase(event.data.agent)
       if (child.status !== "running") child.status = "running"
       input.emit()
       return
@@ -1062,7 +1058,7 @@ export function createSubagentTracker(input: SubagentTrackerInput): SubagentTrac
           visited.add(session.id)
           const child = admitChild(session.id)
           if (!child) break
-          if (session.agent && child.label === fallbackLabel) child.label = Locale.titlecase(session.agent)
+          if (session.agent && child.label === FALLBACK_LABEL) child.label = Locale.titlecase(session.agent)
           if (!child.title) child.title = session.title
           touch(child, session.time.updated)
           queue.push(session.id)

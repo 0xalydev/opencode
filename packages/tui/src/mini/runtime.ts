@@ -9,7 +9,6 @@
 //      local sessions,
 //   4. runs the prompt queue until the footer closes.
 import { SessionMessage } from "@opencode/schema/session-message"
-import { createLanguage } from "../i18n/translate"
 import type { LocationRef } from "@opencode/client/promise"
 import type { Config } from "../config"
 import { newSessionLocation } from "../config/new-session-location"
@@ -203,8 +202,6 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
     return tuiConfig
   })
   const ctx = await input.boot()
-  const tuiConfig = await tuiConfigTask
-  const language = createLanguage(() => tuiConfig.language ?? "en")
   const runtimeController = new AbortController()
   const session = {
     first: true,
@@ -299,7 +296,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
       const model = state.model ?? state.defaultModel
       if (!model || state.variants.length === 0) {
         return {
-          status: language.t("tui.mini.noVariants"),
+          status: "no variants available",
         }
       }
 
@@ -307,9 +304,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
       state.activeVariant = cycleVariant(state.activeVariant, state.variants)
       void input.host.preferences.saveVariant(model, state.activeVariant)
       return {
-        status: state.activeVariant
-          ? language.t("tui.mini.variantStatus", { variant: state.activeVariant })
-          : language.t("tui.mini.variantDefault"),
+        status: state.activeVariant ? `variant ${state.activeVariant}` : "variant default",
         modelLabel: formatModelLabel(model, state.activeVariant, state.providers),
         variant: state.activeVariant,
       }
@@ -346,7 +341,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
 
       return {
         modelLabel: formatModelLabel(model, state.activeVariant, state.providers),
-        status: language.t("tui.mini.modelStatus", { model: model.modelID }),
+        status: `model ${model.modelID}`,
         variant: state.activeVariant,
         variants: state.variants,
       }
@@ -355,13 +350,13 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
       const model = state.model ?? state.defaultModel
       if (!model || state.variants.length === 0) {
         return {
-          status: language.t("tui.mini.noVariants"),
+          status: "no variants available",
         }
       }
 
       if (variant && !state.variants.includes(variant)) {
         return {
-          status: language.t("tui.mini.variantUnavailable", { variant }),
+          status: `variant ${variant} unavailable`,
         }
       }
 
@@ -369,9 +364,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
       state.activeVariant = variant
       void input.host.preferences.saveVariant(model, state.activeVariant)
       return {
-        status: state.activeVariant
-          ? language.t("tui.mini.variantStatus", { variant: state.activeVariant })
-          : language.t("tui.mini.variantDefault"),
+        status: state.activeVariant ? `variant ${state.activeVariant}` : "variant default",
         modelLabel: formatModelLabel(model, state.activeVariant, state.providers),
         variant: state.activeVariant,
         variants: state.variants,
@@ -749,7 +742,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
       if (footer.isClosed) return
       footer.append({
         kind: "system",
-        text: language.t("tui.mini.startup", { duration: Math.max(0, Math.round(input.host.startup.now() - start)) }),
+        text: `startup ${Math.max(0, Math.round(input.host.startup.now() - start))}ms`,
         phase: "final",
         source: "system",
       })
@@ -798,7 +791,6 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
       }
 
       const handle = await mod.createSessionTransport({
-        language,
         sdk: state.sdk,
         reconnect: input.reconnect,
         onClient: updateClient,
@@ -868,7 +860,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
   const renderPromptError = async (prompt: RunPrompt, error: unknown, signal?: AbortSignal) => {
     if (signal?.aborted || footer.isClosed) return
     const text =
-      (await state.stream?.then((item) => item.mod).catch(() => undefined))?.formatUnknownError(error, language) ??
+      (await state.stream?.then((item) => item.mod).catch(() => undefined))?.formatUnknownError(error) ??
       (error instanceof Error ? error.message : String(error))
     const commit = {
       kind: "error",
@@ -896,7 +888,6 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
     const mod = await import("./runtime.queue")
     const createSession = input.createSession
     await mod.runPromptQueue({
-      language,
       footer,
       initialInput: input.initialInput,
       trace: log,
@@ -956,7 +947,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
                 },
                 runtimeController.signal,
               )
-              if (!created.sessionID) throw new Error(language.t("tui.mini.createSessionFailed"))
+              if (!created.sessionID) throw new Error("Failed to create session")
               await footer.idle().catch(() => {})
               await state.stream?.then((item) => item.handle.close()).catch(() => {})
               state.stream = undefined
@@ -999,7 +990,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
               })
               footer.append({
                 kind: "system",
-                text: language.t("tui.mini.newSessionStatus", { session: state.sessionID }),
+                text: `new session ${state.sessionID}`,
                 phase: "final",
                 source: "system",
               })
@@ -1009,7 +1000,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
                 type: "stream.patch",
                 patch: {
                   phase: "idle",
-                  status: language.t("tui.mini.newSessionFailed"),
+                  status: "failed to start new session",
                 },
               })
               const commit = {

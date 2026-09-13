@@ -1,5 +1,4 @@
 /** @jsxImportSource @opentui/solid */
-import { useMiniLanguage } from "./language"
 import { TextAttributes, type ColorInput } from "@opentui/core"
 import { useTerminalDimensions, type JSX } from "@opentui/solid"
 import { createEffect, createMemo, createSignal, type Accessor } from "solid-js"
@@ -94,7 +93,6 @@ export function RunFooterMenu(props: {
   mono?: boolean
 }) {
   const term = useTerminalDimensions()
-  const language = useMiniLanguage()
   const limit = () => Math.max(1, Math.min(props.rows(), props.limit ?? FOOTER_MENU_ROWS))
   const border = () => props.border ?? true
   const paddingLeft = () => Math.min(props.paddingLeft ?? 1, term().width < FOOTER_COMPACT_WIDTH ? 1 : Infinity)
@@ -195,7 +193,7 @@ export function RunFooterMenu(props: {
             backgroundColor={props.background ? props.theme().shade : transparent}
           >
             <text fg={props.theme().muted} wrapMode="none" truncate>
-              {props.empty ?? language.t("tui.mini.noMatchingItems")}
+              {props.empty ?? "No matching items"}
             </text>
           </box>
         </box>

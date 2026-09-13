@@ -13,7 +13,6 @@ import {
 } from "../util/form"
 import type { FormAnswerField } from "../util/form"
 import type { FormReply, MiniFormRequest } from "./types"
-import { defaultMiniLanguage } from "./language"
 
 export { formCustom, formLabel, formRows, formTextual, formValidateValue }
 
@@ -48,18 +47,17 @@ export function formSync(state: FormBodyState, form: FormInfo): FormBodyState {
   return state.formID === form.id ? state : createFormBodyState(form)
 }
 
-export function formUnsupported(form: FormInfo, language = defaultMiniLanguage): string | undefined {
-  if (!Array.isArray(form.fields) || form.fields.length === 0) return language.t("tui.mini.form.noFields")
+export function formUnsupported(form: FormInfo): string | undefined {
+  if (!Array.isArray(form.fields) || form.fields.length === 0) return "This form has no supported fields."
   for (const field of form.fields as ReadonlyArray<FormField | Record<string, unknown>>) {
-    if (!field || typeof field !== "object" || typeof field.type !== "string")
-      return language.t("tui.mini.form.unknownField")
-    if (!("key" in field) || typeof field.key !== "string") return language.t("tui.mini.form.invalidField")
+    if (!field || typeof field !== "object" || typeof field.type !== "string") return "This form uses an unknown field."
+    if (!("key" in field) || typeof field.key !== "string") return "This form uses an invalid field."
     if ("when" in field && Array.isArray(field.when) && field.when.length > 0)
-      return language.t("tui.mini.form.conditionalUnsupported")
+      return "Conditional forms are not supported in Mini yet."
     if (field.type === "string" && "pattern" in field && field.pattern !== undefined)
-      return language.t("tui.mini.form.patternUnsupported")
+      return "Pattern-constrained forms are not supported in Mini yet."
     if (!["string", "number", "integer", "boolean", "multiselect", "external"].includes(field.type))
-      return language.t("tui.mini.form.typeUnsupported", { type: field.type })
+      return `Field type ${field.type} is not supported in Mini yet.`
   }
 }
 
@@ -83,9 +81,9 @@ export function formSingle(form: FormInfo) {
   )
 }
 
-export function formPlaceholder(field: FormField | undefined, language = defaultMiniLanguage) {
-  if (field?.type === "string") return field.placeholder ?? language.t("tui.mini.form.answerPlaceholder")
-  return language.t("tui.mini.form.numberPlaceholder")
+export function formPlaceholder(field: FormField | undefined) {
+  if (field?.type === "string") return field.placeholder ?? "Type your answer"
+  return "Enter a number"
 }
 
 export function formMove(state: FormBodyState, form: FormInfo, direction: -1 | 1): FormBodyState {
@@ -125,16 +123,15 @@ export function formSetDraft(state: FormBodyState, field: FormField | undefined,
   return { ...state, custom: { ...state.custom, [field.key]: value } }
 }
 
-export function formValidate(form: FormInfo, state: FormBodyState, language = defaultMiniLanguage): string | undefined {
-  const unsupported = formUnsupported(form, language)
+export function formValidate(form: FormInfo, state: FormBodyState): string | undefined {
+  const unsupported = formUnsupported(form)
   if (unsupported) return unsupported
   for (const field of form.fields) {
     if (field.type === "external") {
-      if (state.answers[field.key] !== true)
-        return language.t("tui.mini.form.acknowledgeField", { field: formLabel(field) })
+      if (state.answers[field.key] !== true) return `Acknowledge ${formLabel(field)}`
       continue
     }
-    const invalid = formValidateValue(field, state.answers[field.key], language.t)
+    const invalid = formValidateValue(field, state.answers[field.key])
     if (invalid) return `${formLabel(field)}: ${invalid}`
   }
 }
@@ -189,19 +186,14 @@ export function formPick(state: FormBodyState, form: FormInfo): FormBodyState {
   return formSetField(next, form, formSingle(form) ? state.field : state.field + 1)
 }
 
-export function formCommitInput(
-  state: FormBodyState,
-  form: FormInfo,
-  text: string,
-  language = defaultMiniLanguage,
-): FormBodyState {
+export function formCommitInput(state: FormBodyState, form: FormInfo, text: string): FormBodyState {
   const field = formCurrent(form, state)
   if (!field || field.type === "external" || field.type === "boolean") return state
   const input = text.trim()
   const value = !input ? undefined : field.type === "number" || field.type === "integer" ? Number(input) : input
   if (field.type === "multiselect") {
     const values = formSetMultiselectCustom(state.answers[field.key], state.custom[field.key], input)
-    const invalid = formValidateValue(field, values, language.t)
+    const invalid = formValidateValue(field, values)
     if (invalid) return formSetError(state, invalid)
     return {
       ...state,
@@ -211,7 +203,7 @@ export function formCommitInput(
       error: "",
     }
   }
-  const invalid = formValidateValue(field, value, language.t)
+  const invalid = formValidateValue(field, value)
   if (invalid) return formSetError(state, invalid)
   return {
     ...state,
@@ -233,11 +225,11 @@ export function formAcknowledge(state: FormBodyState, form: FormInfo): FormBodyS
   return formSetField(next, form, formSingle(form) ? state.field : state.field + 1)
 }
 
-export function formDisplay(field: FormAnswerField, value: FormValue | undefined, language = defaultMiniLanguage) {
-  return formDisplayValue(field, value, "", language.t)
+export function formDisplay(field: FormAnswerField, value: FormValue | undefined) {
+  return formDisplayValue(field, value, "")
 }
 
-export function formErrorMessage(error: unknown, language = defaultMiniLanguage) {
+export function formErrorMessage(error: unknown) {
   if (typeof error === "string" && error.trim()) return error
   if (error && typeof error === "object") {
     const message = Reflect.get(error, "message")
@@ -245,5 +237,5 @@ export function formErrorMessage(error: unknown, language = defaultMiniLanguage)
     const tag = Reflect.get(error, "_tag")
     if (typeof tag === "string" && tag.trim()) return tag
   }
-  return language.t("tui.mini.form.failed")
+  return "Form request failed"
 }

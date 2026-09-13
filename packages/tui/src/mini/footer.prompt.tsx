@@ -18,7 +18,6 @@ import {
 import { useRenderer, useTerminalDimensions } from "@opentui/solid"
 import { normalizePromptContent } from "../prompt/content"
 import { deduplicatePromptImages, promptAttachmentLabel } from "../prompt/attachment"
-import { useMiniLanguage } from "./language"
 import { resolvePastedAttachments } from "../component/prompt/local-attachment"
 import { createTuiClipboard, type OwnedClipboardService } from "../clipboard"
 import type { ClipboardService } from "../context/clipboard"
@@ -234,7 +233,6 @@ export function RunPromptBody(props: {
   onSizeChange: () => void
   bind: (area?: TextareaRenderable) => void
 }) {
-  const language = useMiniLanguage()
   const renderer = useRenderer()
   let area: TextareaRenderable | undefined
   let pasteTick: ReturnType<typeof setTimeout> | undefined
@@ -299,10 +297,7 @@ export function RunPromptBody(props: {
                 const [failed, setFailed] = createSignal(false)
                 return (
                   <box width={props.layout().images * 2} height="100%" flexShrink={1}>
-                    <Show
-                      when={!failed()}
-                      fallback={<text fg={props.theme().muted}>{language.t("tui.mini.noPreview")}</text>}
-                    >
+                    <Show when={!failed()} fallback={<text fg={props.theme().muted}>No preview</text>}>
                       <image
                         id={`mini-prompt-image-${index()}`}
                         source={image}
@@ -319,7 +314,7 @@ export function RunPromptBody(props: {
             </For>
             <Show when={props.images().length > 3}>
               <text fg={props.theme().muted} wrapMode="none" truncate>
-                {language.t("tui.mini.moreImages", { count: props.images().length - 3 })}
+                +{props.images().length - 3} more
               </text>
             </Show>
           </box>
@@ -353,7 +348,6 @@ export function RunPromptBody(props: {
 }
 
 export function createPromptState(input: PromptInput): PromptState {
-  const language = useMiniLanguage()
   const renderer = useRenderer()
   const term = useTerminalDimensions()
   const [lines, setLines] = createSignal(TEXTAREA_MIN_ROWS)
@@ -361,9 +355,7 @@ export function createPromptState(input: PromptInput): PromptState {
   const [shell, setShell] = createSignal(false)
   const placeholder = createMemo(() => {
     if (shell()) {
-      return new StyledText([
-        fg(input.theme().muted)(language.t("tui.mini.prompt.shellPlaceholder", { command: "git status" })),
-      ])
+      return new StyledText([fg(input.theme().muted)('Run a command… "git status"')])
     }
 
     if (!input.state().first) {
@@ -371,7 +363,7 @@ export function createPromptState(input: PromptInput): PromptState {
     }
 
     return new StyledText([
-      fg(input.theme().muted)(language.t("tui.mini.prompt.placeholder", { ellipsis: input.mono() ? "..." : "…" })),
+      fg(input.theme().muted)(`Ask anything, / for commands, @ for context${input.mono() ? "..." : "…"}`),
     ])
   })
 
@@ -541,33 +533,23 @@ export function createPromptState(input: PromptInput): PromptState {
         action: "editor" as const,
         name: "editor",
         display: "/editor",
-        description: language.t("tui.mini.prompt.editorDescription"),
+        description: "compose in your external editor",
       } satisfies SlashOption,
       {
         kind: "slash",
         action: "settings" as const,
         name: "settings",
         display: "/settings",
-        description: language.t("tui.mini.prompt.settingsDescription"),
+        description: "configure Mini transcript output",
       } satisfies SlashOption,
-      {
-        kind: "slash",
-        name: "new",
-        display: "/new",
-        description: language.t("tui.mini.prompt.newDescription"),
-      } satisfies SlashOption,
+      { kind: "slash", name: "new", display: "/new", description: "start a new session" } satisfies SlashOption,
       {
         kind: "slash",
         name: "compact",
         display: "/compact",
-        description: language.t("tui.mini.prompt.compactDescription"),
+        description: "compact older session context to free space",
       } satisfies SlashOption,
-      {
-        kind: "slash",
-        name: "exit",
-        display: "/exit",
-        description: language.t("tui.mini.prompt.exitDescription"),
-      } satisfies SlashOption,
+      { kind: "slash", name: "exit", display: "/exit", description: "close OpenCode" } satisfies SlashOption,
     ]
     const hidden = new Set(builtins.map((item) => item.name))
     const showSkillMenu = !shell() && skillCommands().length > 0 && !hasSkillsCommand()
@@ -584,7 +566,7 @@ export function createPromptState(input: PromptInput): PromptState {
               action: "skill-menu" as const,
               name: "skills",
               display: "/skills",
-              description: language.t("tui.mini.prompt.skillsDescription"),
+              description: "browse available skills",
             } satisfies SlashOption,
           ]
         : []),
@@ -927,7 +909,7 @@ export function createPromptState(input: PromptInput): PromptState {
         if (!content || changed()) return
         const image = content.mime.startsWith("image/")
         if (image && shell()) {
-          input.onStatus(language.t("tui.mini.prompt.shellImagesUnavailable"))
+          input.onStatus("image attachments are unavailable in shell mode")
           return
         }
         if (!image && content.mime !== "text/plain") return
@@ -1081,7 +1063,7 @@ export function createPromptState(input: PromptInput): PromptState {
       })
     } catch {
       restore(current)
-      input.onStatus(language.t("tui.mini.prompt.editorFailed"))
+      input.onStatus("failed to open editor")
     }
   }
 
@@ -1262,8 +1244,8 @@ export function createPromptState(input: PromptInput): PromptState {
     commands: [
       {
         id: "prompt.clear",
-        title: language.t("tui.mini.prompt.clearOrExit"),
-        group: language.t("tui.mini.prompt"),
+        title: "Clear prompt or exit",
+        group: "Prompt",
         run() {
           if (requestExit()) return
           return false
@@ -1277,14 +1259,14 @@ export function createPromptState(input: PromptInput): PromptState {
     commands: [
       {
         id: "prompt.paste",
-        title: language.t("tui.mini.prompt.paste"),
-        group: language.t("tui.mini.prompt"),
+        title: "Paste",
+        group: "Prompt",
         run: () => paste(),
       },
       {
         id: "session.interrupt",
-        title: language.t("tui.mini.prompt.interruptSession"),
-        group: language.t("tui.mini.session"),
+        title: "Interrupt session",
+        group: "Session",
         run() {
           if (input.onInterrupt()) return
           return false
@@ -1299,8 +1281,8 @@ export function createPromptState(input: PromptInput): PromptState {
     commands: [
       {
         id: "prompt.queue",
-        title: language.t("tui.mini.prompt.queue"),
-        group: language.t("tui.mini.prompt"),
+        title: "Queue prompt",
+        group: "Prompt",
         palette: true,
         run() {
           onSubmit("queue")
@@ -1315,8 +1297,8 @@ export function createPromptState(input: PromptInput): PromptState {
     commands: [
       {
         id: "prompt.editor",
-        title: language.t("tui.mini.openEditor"),
-        group: language.t("tui.mini.prompt"),
+        title: "Open editor",
+        group: "Prompt",
         run() {
           void openEditor()
         },
@@ -1330,8 +1312,8 @@ export function createPromptState(input: PromptInput): PromptState {
     commands: [
       {
         id: "prompt.history.previous",
-        title: language.t("tui.mini.prompt.previousHistory"),
-        group: language.t("tui.mini.prompt"),
+        title: "Previous prompt history",
+        group: "Prompt",
         run(_input: string | undefined, event?: KeyEvent) {
           if (!event) return false
           return historyCommand(-1, event)
@@ -1339,8 +1321,8 @@ export function createPromptState(input: PromptInput): PromptState {
       },
       {
         id: "prompt.history.next",
-        title: language.t("tui.mini.prompt.nextHistory"),
-        group: language.t("tui.mini.prompt"),
+        title: "Next prompt history",
+        group: "Prompt",
         run(_input: string | undefined, event?: KeyEvent) {
           if (!event) return false
           return historyCommand(1, event)
@@ -1354,8 +1336,8 @@ export function createPromptState(input: PromptInput): PromptState {
     commands: [
       {
         bind: "!",
-        title: language.t("tui.mini.prompt.shellMode"),
-        group: language.t("tui.mini.prompt"),
+        title: "Shell mode",
+        group: "Prompt",
         run() {
           if (shell()) return false
           if (!area || area.isDestroyed) return false
@@ -1371,14 +1353,14 @@ export function createPromptState(input: PromptInput): PromptState {
     commands: [
       {
         bind: "escape",
-        title: language.t("tui.mini.prompt.exitShell"),
-        group: language.t("tui.mini.prompt"),
+        title: "Exit shell mode",
+        group: "Prompt",
         run: () => setShellMode(false),
       },
       {
         bind: "backspace",
-        title: language.t("tui.mini.prompt.exitShell"),
-        group: language.t("tui.mini.prompt"),
+        title: "Exit shell mode",
+        group: "Prompt",
         run() {
           if (!area || area.isDestroyed) return false
           if (area.cursorOffset !== 0) return false
@@ -1393,26 +1375,26 @@ export function createPromptState(input: PromptInput): PromptState {
     commands: [
       {
         id: "prompt.autocomplete.prev",
-        title: language.t("tui.mini.prompt.previousCompletion"),
-        group: language.t("tui.mini.prompt.autocomplete"),
+        title: "Previous autocomplete item",
+        group: "Autocomplete",
         run: () => menu.move(-1),
       },
       {
         id: "prompt.autocomplete.next",
-        title: language.t("tui.mini.prompt.nextCompletion"),
-        group: language.t("tui.mini.prompt.autocomplete"),
+        title: "Next autocomplete item",
+        group: "Autocomplete",
         run: () => menu.move(1),
       },
       {
         id: "prompt.autocomplete.hide",
-        title: language.t("tui.mini.prompt.hideCompletion"),
-        group: language.t("tui.mini.prompt.autocomplete"),
+        title: "Hide autocomplete",
+        group: "Autocomplete",
         run: cancelAutocomplete,
       },
       {
         id: "prompt.autocomplete.select",
-        title: language.t("tui.mini.prompt.selectCompletion"),
-        group: language.t("tui.mini.prompt.autocomplete"),
+        title: "Select autocomplete item",
+        group: "Autocomplete",
         run() {
           if (mode() === "slash" && options().length === 0) {
             hide()
@@ -1423,8 +1405,8 @@ export function createPromptState(input: PromptInput): PromptState {
       },
       {
         id: "prompt.autocomplete.complete",
-        title: language.t("tui.mini.prompt.completeCompletion"),
-        group: language.t("tui.mini.prompt.autocomplete"),
+        title: "Complete autocomplete item",
+        group: "Autocomplete",
         run() {
           if (mode() === "slash" && options().length === 0) {
             hide()
@@ -1473,9 +1455,7 @@ export function createPromptState(input: PromptInput): PromptState {
         })
         return
       }
-      input.onStatus(
-        language.t(input.state().phase === "running" ? "tui.mini.prompt.waiting" : "tui.mini.prompt.empty"),
-      )
+      input.onStatus(input.state().phase === "running" ? "waiting for current response" : "empty prompt ignored")
       return
     }
 
@@ -1489,7 +1469,7 @@ export function createPromptState(input: PromptInput): PromptState {
         isExitCommand(next.text) ||
         next.text.trim().toLowerCase() === "/settings")
     ) {
-      input.onStatus(language.t("tui.mini.prompt.cannotQueue"))
+      input.onStatus("this prompt cannot be queued")
       return
     }
     if (!command && next.mode !== "shell" && isExitCommand(next.text)) {
@@ -1508,7 +1488,7 @@ export function createPromptState(input: PromptInput): PromptState {
         ? undefined
         : parseSlashCommand(next.text, input.commands())
     if (parsed?.type === "pending") {
-      input.onStatus(language.t("tui.mini.prompt.commandsLoading"))
+      input.onStatus("loading commands")
       return
     }
 

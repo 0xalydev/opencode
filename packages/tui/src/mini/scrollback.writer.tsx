@@ -14,7 +14,6 @@ import { toolFiletype, toolStructuredFinal } from "./tool"
 import { RUN_THEME_FALLBACK, transparent, type RunTheme } from "./theme"
 import type { EntryLayout, RunEntryBody, ScrollbackOptions, StreamCommit, TurnSummary } from "./types"
 import { PatchDiff } from "../component/patch-diff"
-import { defaultMiniLanguage } from "./language"
 
 export function entryGroupKey(commit: StreamCommit): string | undefined {
   if (!commit.partID) {
@@ -84,7 +83,6 @@ export function RunEntryContent(props: {
   opts?: ScrollbackOptions
 }) {
   const theme = createMemo(() => props.theme ?? RUN_THEME_FALLBACK)
-  const language = props.opts?.language ?? defaultMiniLanguage
   const body = createMemo(() => props.body ?? entryBody(props.commit, props.opts))
   const style = createMemo(() => entryLook(props.commit, theme().entry))
   const syntax = createMemo(() => entrySyntax(theme()))
@@ -205,7 +203,7 @@ export function RunEntryContent(props: {
                 </box>
               ) : (
                 <text width="100%" wrapMode="word" fg={theme().block.diffRemoved}>
-                  {language.plural("tui.mini.deletedLineCount", item.deletions ?? 0)}
+                  -{item.deletions ?? 0} line{item.deletions === 1 ? "" : "s"}
                 </text>
               )}
             </box>
@@ -234,7 +232,7 @@ export function RunEntryContent(props: {
       <Match when={question_snapshot()}>
         <box width="100%" flexDirection="column" gap={1}>
           <text width="100%" wrapMode="word" fg={theme().block.muted}>
-            # {language.t("tui.mini.questions")}
+            # Questions
           </text>
           <box width="100%" flexDirection="column" gap={1}>
             {question_snapshot()!.items.map((item) => (

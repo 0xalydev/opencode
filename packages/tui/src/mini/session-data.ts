@@ -1,5 +1,4 @@
 import type { FooterView, MiniFormRequest, MiniPermissionRequest } from "./types"
-import { defaultMiniLanguage } from "./language"
 
 export function pickBlockerView(input: { permission?: MiniPermissionRequest; form?: MiniFormRequest }): FooterView {
   if (input.permission) return { type: "permission", request: input.permission }
@@ -7,8 +6,8 @@ export function pickBlockerView(input: { permission?: MiniPermissionRequest; for
   return { type: "prompt" }
 }
 
-export function blockerStatus(view: FooterView, language = defaultMiniLanguage) {
-  if (view.type === "permission") return language.t("tui.mini.awaitingPermission")
-  if (view.type === "form") return language.t("tui.mini.awaitingForm")
+export function blockerStatus(view: FooterView) {
+  if (view.type === "permission") return "awaiting permission"
+  if (view.type === "form") return "awaiting form"
   return ""
 }

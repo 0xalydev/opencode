@@ -1,5 +1,4 @@
 import { toolEntryBody } from "./tool"
-import { defaultMiniLanguage, type MiniLanguage } from "./language"
 import { monoPrefix, monoToolText } from "./mono"
 import type { RunEntryBody, ScrollbackOptions, StreamCommit } from "./types"
 
@@ -60,7 +59,7 @@ function userBody(raw: string, mono: boolean): RunEntryBody {
   return textBody(`${lead}${mono ? ">" : "›"} ${body}`)
 }
 
-function reasoningBody(raw: string, mono: boolean, language: MiniLanguage): RunEntryBody {
+function reasoningBody(raw: string, mono: boolean): RunEntryBody {
   const clean = raw.replace(/\[REDACTED\]/g, "")
   if (!clean) {
     return RUN_ENTRY_NONE
@@ -70,9 +69,8 @@ function reasoningBody(raw: string, mono: boolean, language: MiniLanguage): RunE
   const body = lead ? clean.slice(lead.length) : clean
   const mark = "Thinking:"
   if (body.startsWith(mark)) {
-    const label = language.t("tui.mini.thinkingLabel")
-    if (mono) return textBody(`${lead}${label} ${body.slice(mark.length).trimStart()}`)
-    return codeBody(`${lead}_${label}_ ${body.slice(mark.length).trimStart()}`, "markdown")
+    if (mono) return textBody(`${lead}${mark} ${body.slice(mark.length).trimStart()}`)
+    return codeBody(`${lead}_Thinking:_ ${body.slice(mark.length).trimStart()}`, "markdown")
   }
 
   return mono ? textBody(clean) : codeBody(clean, "markdown")
@@ -82,7 +80,7 @@ function systemBody(raw: string, phase: StreamCommit["phase"]): RunEntryBody {
   return textBody(phase === "progress" ? raw : raw.trim())
 }
 
-function monoBody(body: RunEntryBody, language: MiniLanguage): RunEntryBody {
+function monoBody(body: RunEntryBody): RunEntryBody {
   if (body.type === "none" || body.type === "text" || body.type === "markdown") return body
   if (body.type === "code") return textBody(body.content)
   const snapshot = body.snapshot
@@ -90,10 +88,7 @@ function monoBody(body: RunEntryBody, language: MiniLanguage): RunEntryBody {
   if (snapshot.kind === "diff") {
     return textBody(
       snapshot.items
-        .map(
-          (item) =>
-            `${item.title}\n${item.diff.trim() || language.t("tui.mini.deletedLines", { count: item.deletions ?? 0 })}`,
-        )
+        .map((item) => `${item.title}\n${item.diff.trim() || `-${item.deletions ?? 0} lines`}`)
         .join("\n\n"),
     )
   }
@@ -101,11 +96,7 @@ function monoBody(body: RunEntryBody, language: MiniLanguage): RunEntryBody {
     return textBody([snapshot.title, ...snapshot.rows, snapshot.tail].filter(Boolean).join("\n"))
   }
   return textBody(
-    [
-      "# " + language.t("tui.mini.questions"),
-      ...snapshot.items.flatMap((item) => [item.question, item.answer]),
-      snapshot.tail,
-    ]
+    ["# Questions", ...snapshot.items.flatMap((item) => [item.question, item.answer]), snapshot.tail]
       .filter(Boolean)
       .join("\n"),
   )
@@ -196,7 +187,6 @@ export function entryCanStream(commit: StreamCommit, body: RunEntryBody): boolea
 }
 
 export function entryBody(commit: StreamCommit, options?: ScrollbackOptions): RunEntryBody {
-  const language = options?.language ?? defaultMiniLanguage
   if (commit.summary) {
     return RUN_ENTRY_NONE
   }
@@ -205,8 +195,8 @@ export function entryBody(commit: StreamCommit, options?: ScrollbackOptions): Ru
   const mono = options?.mono === true
 
   if (commit.image) {
-    const caption = raw.trim() || language.t("tui.mini.image")
-    return commit.kind === "user" ? userBody(caption, mono) : textBody(monoToolText(caption, mono, language))
+    const caption = raw.trim() || "Image"
+    return commit.kind === "user" ? userBody(caption, mono) : textBody(monoToolText(caption, mono))
   }
 
   if (commit.kind === "user") {
@@ -215,9 +205,9 @@ export function entryBody(commit: StreamCommit, options?: ScrollbackOptions): Ru
 
   if (commit.kind === "tool") {
     const body = toolEntryBody(commit, raw, options) ?? RUN_ENTRY_NONE
-    const result = mono ? monoBody(body, language) : body
+    const result = mono ? monoBody(body) : body
     if (!mono || body.type !== "text" || result.type !== "text" || commit.phase === "progress") return result
-    return textBody(monoToolText(result.content, true, language))
+    return textBody(monoToolText(result.content, true))
   }
 
   if (commit.kind === "assistant") {
@@ -226,7 +216,7 @@ export function entryBody(commit: StreamCommit, options?: ScrollbackOptions): Ru
     }
 
     if (commit.phase === "final") {
-      return commit.interrupted ? textBody(language.t("tui.mini.assistantInterrupted")) : RUN_ENTRY_NONE
+      return commit.interrupted ? textBody("assistant interrupted") : RUN_ENTRY_NONE
     }
 
     return markdownBody(raw)
@@ -238,10 +228,10 @@ export function entryBody(commit: StreamCommit, options?: ScrollbackOptions): Ru
     }
 
     if (commit.phase === "final") {
-      return commit.interrupted ? textBody(language.t("tui.mini.reasoningInterrupted")) : RUN_ENTRY_NONE
+      return commit.interrupted ? textBody("reasoning interrupted") : RUN_ENTRY_NONE
     }
 
-    return reasoningBody(raw, mono, language)
+    return reasoningBody(raw, mono)
   }
 
   const body = systemBody(raw, commit.phase)
