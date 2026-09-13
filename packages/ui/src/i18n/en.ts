@@ -211,6 +211,8 @@ const source = {
 
   "ui.common.file.one": "file",
   "ui.common.file.other": "files",
+  "ui.common.fileCount.one": "{{count}} file",
+  "ui.common.fileCount.other": "{{count}} files",
   "ui.common.question.one": "question",
   "ui.common.question.other": "questions",
 

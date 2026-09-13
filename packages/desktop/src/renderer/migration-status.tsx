@@ -16,15 +16,23 @@ export function MigrationStatus(props: { server: ServerReadyData }) {
 
   const format = (progress: Progress | undefined) => {
     if (!progress) return ""
-    const label =
-      progress.label === "Clearing old events"
-        ? language.t("toast.migration.progress.clearingOldEvents")
-        : progress.label === "Migrating sessions"
-          ? language.t("toast.migration.progress.migratingSessions")
-          : progress.label
-    if (progress.numerator === undefined) return label
-    if (progress.denominator === undefined) return `${label} ${progress.numerator}`
-    return `${label} ${progress.numerator}/${progress.denominator}`
+    if (progress.label === "Clearing old events") return language.t("toast.migration.progress.clearingOldEvents")
+    if (progress.label === "Migrating sessions") {
+      if (progress.numerator === undefined) return language.t("toast.migration.progress.migratingSessions")
+      if (progress.denominator === undefined)
+        return language.t("toast.migration.progress.migratingSessions.current", { current: progress.numerator })
+      return language.t("toast.migration.progress.migratingSessions.progress", {
+        current: progress.numerator,
+        total: progress.denominator,
+      })
+    }
+    if (progress.numerator === undefined) return language.t("toast.migration.progress.working")
+    if (progress.denominator === undefined)
+      return language.t("toast.migration.progress.working.current", { current: progress.numerator })
+    return language.t("toast.migration.progress.working.progress", {
+      current: progress.numerator,
+      total: progress.denominator,
+    })
   }
 
   const hide = () => {

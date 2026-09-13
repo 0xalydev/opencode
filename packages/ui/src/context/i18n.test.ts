@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { createUiI18n, pluralCategory, type UiI18nSource } from "./i18n"
+import { createUiI18n, localizedListSeparator, pluralCategory, type UiI18nSource } from "./i18n"
 
 describe("pluralCategory", () => {
   test.each([
@@ -45,5 +45,13 @@ describe("dynamic source copy", () => {
     expect(i18n("fr", "Texte traduit").tDynamic("dialog.usageExceeded.freeTier.title", "Runtime copy")).toBe(
       "Texte traduit",
     )
+  })
+})
+
+describe("localizedListSeparator", () => {
+  test("uses locale list punctuation and conjunctions", () => {
+    expect(localizedListSeparator("en", 1, 3)).toBe(", ")
+    expect(localizedListSeparator("en", 2, 3)).toBe(", and ")
+    expect(localizedListSeparator("de", 1, 2)).toBe(" und ")
   })
 })

@@ -238,11 +238,6 @@ export const { use: useLanguage, provider: LanguageProvider } = createSimpleCont
       params?: Record<string, string | number | boolean>,
     ) => string
 
-    const rich = (key: Parameters<typeof t>[0], params: Record<string, JSX.Element>) =>
-      t(key)
-        .split(/(\{\{\w+\}\})/g)
-        .map((part, index) => (index % 2 ? (params[part.slice(2, -2)] ?? part) : part))
-
     const pluralForm = (
       key: PluralKey,
       category: UiPluralCategory,
@@ -293,7 +288,6 @@ export const { use: useLanguage, provider: LanguageProvider } = createSimpleCont
       locales: LOCALES,
       label,
       t,
-      rich,
       plural,
       pluralForm,
       rich,
