@@ -110,11 +110,11 @@ async function renderSkills(preference?: Skill.Activation) {
     path: `/skills/${id}/SKILL.md`,
   }))
   const calls = createFetch(async (url, request) => {
-    if (url.pathname === "/api/preferences")
+    if (url.pathname === "/api/settings")
       return json(
         state.preference ? [{ target: { kind: "skill.activation", id: "effect" }, value: state.preference }] : [],
       )
-    if (url.pathname === "/api/preferences/skill.activation/effect") {
+    if (url.pathname === "/api/settings/skill.activation/effect") {
       if (state.fail) return json({ message: "Save failed" }, { status: 500 })
       state.writes.push(request.method)
       state.preference =

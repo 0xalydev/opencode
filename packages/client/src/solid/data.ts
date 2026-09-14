@@ -1325,7 +1325,7 @@ export function createData(config: CreateDataInput) {
       list: () => store.preferences,
       sync: () =>
         sync.run("preferences", async () => {
-          setStore("preferences", await api().preferences.list())
+          setStore("preferences", await api().settings.list())
         }),
       invalidate: () => sync.invalidate("preferences"),
     },

@@ -243,13 +243,13 @@ import type {
   WorktreeRemoveOutput,
   WorktreeRefreshInput,
   WorktreeRefreshOutput,
-  PreferencesListOutput,
-  PreferencesGetInput,
-  PreferencesGetOutput,
-  PreferencesSetInput,
-  PreferencesSetOutput,
-  PreferencesResetInput,
-  PreferencesResetOutput,
+  SettingsListOutput,
+  SettingsGetInput,
+  SettingsGetOutput,
+  SettingsSetInput,
+  SettingsSetOutput,
+  SettingsResetInput,
+  SettingsResetOutput,
   VcsGetInput,
   VcsGetOutput,
   VcsBaseInput,
@@ -1480,34 +1480,31 @@ const adaptGroupWorktree = (raw: RawClient["server.worktree"]) => ({
   refresh: EndpointWorktreeRefresh(raw),
 })
 
-const EndpointPreferencesList = (raw: RawClient["server.preferences"]) => () =>
-  preserveEffect<PreferencesListOutput>()(raw["preferences.list"]({}).pipe(Effect.mapError(mapClientError)))
+const EndpointSettingsList = (raw: RawClient["server.settings"]) => () =>
+  preserveEffect<SettingsListOutput>()(raw["settings.list"]({}).pipe(Effect.mapError(mapClientError)))
 
-const EndpointPreferencesGet = (raw: RawClient["server.preferences"]) => (input: PreferencesGetInput) =>
-  preserveEffect<PreferencesGetOutput>()(
-    raw["preferences.get"]({ params: { kind: input["kind"], id: input["id"] } }).pipe(Effect.mapError(mapClientError)),
+const EndpointSettingsGet = (raw: RawClient["server.settings"]) => (input: SettingsGetInput) =>
+  preserveEffect<SettingsGetOutput>()(
+    raw["settings.get"]({ params: { kind: input["kind"], id: input["id"] } }).pipe(Effect.mapError(mapClientError)),
   )
 
-const EndpointPreferencesSet = (raw: RawClient["server.preferences"]) => (input: PreferencesSetInput) =>
-  preserveEffect<PreferencesSetOutput>()(
-    raw["preferences.set"]({
-      params: { kind: input["kind"], id: input["id"] },
-      payload: { value: input["value"] },
-    }).pipe(Effect.mapError(mapClientError)),
-  )
-
-const EndpointPreferencesReset = (raw: RawClient["server.preferences"]) => (input: PreferencesResetInput) =>
-  preserveEffect<PreferencesResetOutput>()(
-    raw["preferences.reset"]({ params: { kind: input["kind"], id: input["id"] } }).pipe(
+const EndpointSettingsSet = (raw: RawClient["server.settings"]) => (input: SettingsSetInput) =>
+  preserveEffect<SettingsSetOutput>()(
+    raw["settings.set"]({ params: { kind: input["kind"], id: input["id"] }, payload: { value: input["value"] } }).pipe(
       Effect.mapError(mapClientError),
     ),
   )
 
-const adaptGroupPreferences = (raw: RawClient["server.preferences"]) => ({
-  list: EndpointPreferencesList(raw),
-  get: EndpointPreferencesGet(raw),
-  set: EndpointPreferencesSet(raw),
-  reset: EndpointPreferencesReset(raw),
+const EndpointSettingsReset = (raw: RawClient["server.settings"]) => (input: SettingsResetInput) =>
+  preserveEffect<SettingsResetOutput>()(
+    raw["settings.reset"]({ params: { kind: input["kind"], id: input["id"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const adaptGroupSettings = (raw: RawClient["server.settings"]) => ({
+  list: EndpointSettingsList(raw),
+  get: EndpointSettingsGet(raw),
+  set: EndpointSettingsSet(raw),
+  reset: EndpointSettingsReset(raw),
 })
 
 const EndpointVcsGet = (raw: RawClient["server.vcs"]) => (input?: VcsGetInput) =>
@@ -1627,7 +1624,7 @@ const adaptClient = (raw: RawClient) => ({
   shell: adaptGroupShell(raw["server.shell"]),
   reference: adaptGroupReference(raw["server.reference"]),
   worktree: adaptGroupWorktree(raw["server.worktree"]),
-  preferences: adaptGroupPreferences(raw["server.preferences"]),
+  settings: adaptGroupSettings(raw["server.settings"]),
   vcs: adaptGroupVcs(raw["server.vcs"]),
   debug: adaptGroupDebug(raw["server.debug"]),
   migration: adaptGroupMigration(raw["server.migration"]),

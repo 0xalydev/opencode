@@ -54,7 +54,7 @@ describe("acp service prompt routing and usage", () => {
     let disabled = true
     await using fixture = makeACPFixture({
       fetch(request, context) {
-        if (request.path === "/api/preferences")
+        if (request.path === "/api/settings")
           return Response.json(
             disabled ? [{ target: { kind: "skill.activation", id: "verify" }, value: "disabled" }] : [],
           )

@@ -6154,29 +6154,29 @@ export type WorktreeRefreshInput = {
 
 export type WorktreeRefreshOutput = void
 
-export type PreferencesListOutput = Array<PreferencesEntry>
+export type SettingsListOutput = Array<PreferencesEntry>
 
-export type PreferencesGetInput = {
+export type SettingsGetInput = {
   readonly kind: { readonly kind: string; readonly id: string }["kind"]
   readonly id: { readonly kind: string; readonly id: string }["id"]
 }
 
-export type PreferencesGetOutput = PreferencesEntry | null
+export type SettingsGetOutput = PreferencesEntry | null
 
-export type PreferencesSetInput = {
+export type SettingsSetInput = {
   readonly kind: { readonly kind: string; readonly id: string }["kind"]
   readonly id: { readonly kind: string; readonly id: string }["id"]
   readonly value: { readonly value: JsonValue }["value"]
 }
 
-export type PreferencesSetOutput = void
+export type SettingsSetOutput = void
 
-export type PreferencesResetInput = {
+export type SettingsResetInput = {
   readonly kind: { readonly kind: string; readonly id: string }["kind"]
   readonly id: { readonly kind: string; readonly id: string }["id"]
 }
 
-export type PreferencesResetOutput = void
+export type SettingsResetOutput = void
 
 export type VcsGetInput = {
   readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]

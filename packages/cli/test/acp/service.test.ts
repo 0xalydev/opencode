@@ -24,7 +24,7 @@ describe("acp service", () => {
         if (url.pathname === "/api/command")
           return Response.json({ location, data: [{ name: "review", template: "" }] })
         if (url.pathname === "/api/skill") return Response.json({ location, data: [] })
-        if (url.pathname === "/api/preferences") return Response.json([])
+        if (url.pathname === "/api/settings") return Response.json([])
         if (url.pathname === "/api/event")
           return new Response(
             new ReadableStream({

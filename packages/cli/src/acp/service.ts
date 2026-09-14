@@ -142,7 +142,7 @@ export function make(input: { readonly client: OpenCodeClient; readonly connecti
   const refreshSkills = async (state: Attached, initial = false) => {
     const [registered, preferences] = await Promise.all([
       catalog(state.cwd),
-      input.client.preferences.list({ signal: state.abort.signal }),
+      input.client.settings.list({ signal: state.abort.signal }),
     ])
     const disabled = new Set(
       preferences

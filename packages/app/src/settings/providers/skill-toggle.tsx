@@ -19,7 +19,7 @@ export function SkillToggle(props: { id: string; name: string }) {
       )
   const update = useMutation(() => ({
     mutationFn: async (checked: boolean) => {
-      await server.api.preferences.set({
+      await server.api.settings.set({
         kind: "skill.activation",
         id: props.id,
         value: checked ? "enabled" : "disabled",

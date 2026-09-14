@@ -98,7 +98,7 @@ export async function loadRunCommands(
   const [commands, skills, preferences] = await Promise.all([
     sdk.command.list(location(ref), ...requestOptions(signal)),
     sdk.skill.list(location(ref), ...requestOptions(signal)),
-    sdk.preferences.list(...requestOptions(signal)),
+    sdk.settings.list(...requestOptions(signal)),
   ])
   const disabled = new Set(
     preferences

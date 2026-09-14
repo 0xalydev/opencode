@@ -4,17 +4,17 @@ import { Effect } from "effect"
 import { HttpApiBuilder, HttpApiSchema } from "effect/unstable/httpapi"
 import { Api } from "../api"
 
-export const PreferencesHandler = HttpApiBuilder.group(Api, "server.preferences", (handlers) =>
+export const SettingsHandler = HttpApiBuilder.group(Api, "server.settings", (handlers) =>
   Effect.gen(function* () {
     const preferences = yield* Preferences.Service
     return handlers
-      .handle("preferences.list", () => preferences.list())
-      .handle("preferences.get", (ctx) =>
+      .handle("settings.list", () => preferences.list())
+      .handle("settings.get", (ctx) =>
         preferences
           .get(ctx.params)
           .pipe(Effect.map((value) => (value === undefined ? null : { target: ctx.params, value }))),
       )
-      .handle("preferences.set", (ctx) =>
+      .handle("settings.set", (ctx) =>
         preferences.set(ctx.params, ctx.payload.value).pipe(
           Effect.catchTag(
             "Preferences.InvalidValue",
@@ -23,7 +23,7 @@ export const PreferencesHandler = HttpApiBuilder.group(Api, "server.preferences"
           Effect.as(HttpApiSchema.NoContent.make()),
         ),
       )
-      .handle("preferences.reset", (ctx) =>
+      .handle("settings.reset", (ctx) =>
         preferences.reset(ctx.params).pipe(Effect.as(HttpApiSchema.NoContent.make())),
       )
   }),

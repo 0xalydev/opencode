@@ -42,7 +42,7 @@ it.live(
           ),
         })
         yield* Effect.promise(async () => {
-          await expect(client.preferences.set({ ...target, value: "unknown" })).rejects.toMatchObject({
+          await expect(client.settings.set({ ...target, value: "unknown" })).rejects.toMatchObject({
             _tag: "InvalidRequestError",
             field: "value",
           })
@@ -57,10 +57,10 @@ it.live(
           const admitted = await client.session.inbox.list({ sessionID: session.id })
           expect(admitted).toHaveLength(1)
 
-          expect(await client.preferences.get(target)).toBeNull()
-          await client.preferences.set({ ...target, value: "disabled" })
-          expect(await client.preferences.get(target)).toEqual({ target, value: "disabled" })
-          expect(await client.preferences.list()).toEqual([{ target, value: "disabled" }])
+          expect(await client.settings.get(target)).toBeNull()
+          await client.settings.set({ ...target, value: "disabled" })
+          expect(await client.settings.get(target)).toEqual({ target, value: "disabled" })
+          expect(await client.settings.list()).toEqual([{ target, value: "disabled" }])
           for (const location of [first, second]) {
             const skill = (await client.skill.list({ location })).data.find((skill) => skill.id === target.id)
             expect(skill?.name).toBe("Toggle test")
@@ -91,10 +91,10 @@ it.live(
           ),
         })
         yield* Effect.promise(async () => {
-          expect(await client.preferences.list()).toEqual([{ target, value: "disabled" }])
+          expect(await client.settings.list()).toEqual([{ target, value: "disabled" }])
           expect(await waitForSkill(client, second, target.id)).toBe(true)
-          await client.preferences.set({ ...target, value: "enabled" })
-          expect(await client.preferences.list()).toEqual([{ target, value: "enabled" }])
+          await client.settings.set({ ...target, value: "enabled" })
+          expect(await client.settings.list()).toEqual([{ target, value: "enabled" }])
           const session = await client.session.create({ location: second })
           await client.session.skill({ sessionID: session.id, skill: target.id, resume: false })
           await client.session.prompt({
@@ -103,9 +103,9 @@ it.live(
             skills: [{ id: target.id }],
             resume: false,
           })
-          await client.preferences.reset(target)
-          expect(await client.preferences.get(target)).toBeNull()
-          expect(await client.preferences.list()).toEqual([])
+          await client.settings.reset(target)
+          expect(await client.settings.get(target)).toBeNull()
+          expect(await client.settings.list()).toEqual([])
           expect(await waitForSkill(client, second, target.id)).toBe(true)
         })
       }).pipe(Effect.scoped)

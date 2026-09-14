@@ -78,7 +78,7 @@ test("skill switches retain the saved state after a failed write and allow retry
   const fixture = await setup(page)
   const release = Promise.withResolvers<void>()
   await page.route(
-    "**/api/preferences/skill.activation/show-me",
+    "**/api/settings/skill.activation/show-me",
     async (route) => {
       await release.promise
       await route.fulfill({ status: 503, headers, json: { message: "Unavailable" } })
@@ -219,7 +219,7 @@ async function setup(page: Page) {
     },
   )
   await page.route(
-    (url) => url.pathname.startsWith("/api/preferences"),
+    (url) => url.pathname.startsWith("/api/settings"),
     (route) => {
       const request = route.request()
       const url = new URL(request.url())
@@ -231,7 +231,7 @@ async function setup(page: Page) {
       const entry = Schema.decodeUnknownSync(Preferences.Entry)({
         target: {
           kind: "skill.activation",
-          id: decodeURIComponent(url.pathname.slice("/api/preferences/skill.activation/".length)),
+          id: decodeURIComponent(url.pathname.slice("/api/settings/skill.activation/".length)),
         },
         ...request.postDataJSON(),
       })

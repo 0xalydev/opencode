@@ -239,13 +239,13 @@ import type {
   WorktreeRemoveOutput,
   WorktreeRefreshInput,
   WorktreeRefreshOutput,
-  PreferencesListOutput,
-  PreferencesGetInput,
-  PreferencesGetOutput,
-  PreferencesSetInput,
-  PreferencesSetOutput,
-  PreferencesResetInput,
-  PreferencesResetOutput,
+  SettingsListOutput,
+  SettingsGetInput,
+  SettingsGetOutput,
+  SettingsSetInput,
+  SettingsSetOutput,
+  SettingsResetInput,
+  SettingsResetOutput,
   VcsGetInput,
   VcsGetOutput,
   VcsBaseInput,
@@ -2014,28 +2014,28 @@ export function make(options: ClientOptions) {
           requestOptions,
         ),
     },
-    preferences: {
+    settings: {
       list: (requestOptions?: RequestOptions) =>
-        request<PreferencesListOutput>(
-          { method: "GET", path: `/api/preferences`, successStatus: 200, declaredStatuses: [400, 401], empty: false },
+        request<SettingsListOutput>(
+          { method: "GET", path: `/api/settings`, successStatus: 200, declaredStatuses: [400, 401], empty: false },
           requestOptions,
         ),
-      get: (input: PreferencesGetInput, requestOptions?: RequestOptions) =>
-        request<PreferencesGetOutput>(
+      get: (input: SettingsGetInput, requestOptions?: RequestOptions) =>
+        request<SettingsGetOutput>(
           {
             method: "GET",
-            path: `/api/preferences/${encodeURIComponent(input.kind)}/${encodeURIComponent(input.id)}`,
+            path: `/api/settings/${encodeURIComponent(input.kind)}/${encodeURIComponent(input.id)}`,
             successStatus: 200,
             declaredStatuses: [400, 401],
             empty: false,
           },
           requestOptions,
         ),
-      set: (input: PreferencesSetInput, requestOptions?: RequestOptions) =>
-        request<PreferencesSetOutput>(
+      set: (input: SettingsSetInput, requestOptions?: RequestOptions) =>
+        request<SettingsSetOutput>(
           {
             method: "PUT",
-            path: `/api/preferences/${encodeURIComponent(input.kind)}/${encodeURIComponent(input.id)}`,
+            path: `/api/settings/${encodeURIComponent(input.kind)}/${encodeURIComponent(input.id)}`,
             body: { value: input["value"] },
             successStatus: 204,
             declaredStatuses: [400, 401],
@@ -2043,11 +2043,11 @@ export function make(options: ClientOptions) {
           },
           requestOptions,
         ),
-      reset: (input: PreferencesResetInput, requestOptions?: RequestOptions) =>
-        request<PreferencesResetOutput>(
+      reset: (input: SettingsResetInput, requestOptions?: RequestOptions) =>
+        request<SettingsResetOutput>(
           {
             method: "DELETE",
-            path: `/api/preferences/${encodeURIComponent(input.kind)}/${encodeURIComponent(input.id)}`,
+            path: `/api/settings/${encodeURIComponent(input.kind)}/${encodeURIComponent(input.id)}`,
             successStatus: 204,
             declaredStatuses: [400, 401],
             empty: true,

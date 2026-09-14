@@ -147,7 +147,7 @@ export function DialogSkillToggle(props: { location?: LocationRef }) {
     setPending(id)
     const target = { kind: "skill.activation", id }
     await (
-      value === undefined ? client.api.preferences.reset(target) : client.api.preferences.set({ ...target, value })
+      value === undefined ? client.api.settings.reset(target) : client.api.settings.set({ ...target, value })
     )
       .then(async () => {
         data.preferences.invalidate()

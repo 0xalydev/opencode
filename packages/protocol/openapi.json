@@ -11718,10 +11718,10 @@
         "summary": "Refresh worktrees"
       }
     },
-    "/api/preferences": {
+    "/api/settings": {
       "get": {
-        "tags": ["preferences"],
-        "operationId": "preferences.list",
+        "tags": ["settings"],
+        "operationId": "settings.list",
         "parameters": [],
         "security": [],
         "responses": {
@@ -11763,10 +11763,10 @@
         "summary": "List preference overrides"
       }
     },
-    "/api/preferences/{kind}/{id}": {
+    "/api/settings/{kind}/{id}": {
       "get": {
-        "tags": ["preferences"],
-        "operationId": "preferences.get",
+        "tags": ["settings"],
+        "operationId": "settings.get",
         "parameters": [
           {
             "name": "kind",
@@ -11833,8 +11833,8 @@
         "summary": "Get preference override"
       },
       "put": {
-        "tags": ["preferences"],
-        "operationId": "preferences.set",
+        "tags": ["settings"],
+        "operationId": "settings.set",
         "parameters": [
           {
             "name": "kind",
@@ -11904,8 +11904,8 @@
         }
       },
       "delete": {
-        "tags": ["preferences"],
-        "operationId": "preferences.reset",
+        "tags": ["settings"],
+        "operationId": "settings.reset",
         "parameters": [
           {
             "name": "kind",
@@ -19540,7 +19540,7 @@
       "description": "Location-scoped worktree management routes."
     },
     {
-      "name": "preferences"
+      "name": "settings"
     },
     {
       "name": "vcs",

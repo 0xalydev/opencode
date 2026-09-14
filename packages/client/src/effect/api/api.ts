@@ -2202,28 +2202,26 @@ export interface WorktreeApi<E = never> {
   readonly refresh: WorktreeRefreshOperation<E>
 }
 
-export type PreferencesListOutput = ReadonlyArray<Preferences.Entry>
-export type PreferencesListOperation<E = never> = () => Effect.Effect<PreferencesListOutput, E>
+export type SettingsListOutput = ReadonlyArray<Preferences.Entry>
+export type SettingsListOperation<E = never> = () => Effect.Effect<SettingsListOutput, E>
 
-export type PreferencesGetInput = { readonly kind: string; readonly id: string }
-export type PreferencesGetOutput = Preferences.Entry | null
-export type PreferencesGetOperation<E = never> = (input: PreferencesGetInput) => Effect.Effect<PreferencesGetOutput, E>
+export type SettingsGetInput = { readonly kind: string; readonly id: string }
+export type SettingsGetOutput = Preferences.Entry | null
+export type SettingsGetOperation<E = never> = (input: SettingsGetInput) => Effect.Effect<SettingsGetOutput, E>
 
-export type PreferencesSetInput = { readonly kind: string; readonly id: string; readonly value: Preferences.Value }
-export type PreferencesSetOutput = void
-export type PreferencesSetOperation<E = never> = (input: PreferencesSetInput) => Effect.Effect<PreferencesSetOutput, E>
+export type SettingsSetInput = { readonly kind: string; readonly id: string; readonly value: Preferences.Value }
+export type SettingsSetOutput = void
+export type SettingsSetOperation<E = never> = (input: SettingsSetInput) => Effect.Effect<SettingsSetOutput, E>
 
-export type PreferencesResetInput = { readonly kind: string; readonly id: string }
-export type PreferencesResetOutput = void
-export type PreferencesResetOperation<E = never> = (
-  input: PreferencesResetInput,
-) => Effect.Effect<PreferencesResetOutput, E>
+export type SettingsResetInput = { readonly kind: string; readonly id: string }
+export type SettingsResetOutput = void
+export type SettingsResetOperation<E = never> = (input: SettingsResetInput) => Effect.Effect<SettingsResetOutput, E>
 
-export interface PreferencesApi<E = never> {
-  readonly list: PreferencesListOperation<E>
-  readonly get: PreferencesGetOperation<E>
-  readonly set: PreferencesSetOperation<E>
-  readonly reset: PreferencesResetOperation<E>
+export interface SettingsApi<E = never> {
+  readonly list: SettingsListOperation<E>
+  readonly get: SettingsGetOperation<E>
+  readonly set: SettingsSetOperation<E>
+  readonly reset: SettingsResetOperation<E>
 }
 
 export type VcsGetInput = { readonly location?: { readonly directory?: string | undefined } | undefined }
@@ -2362,7 +2360,7 @@ export interface AppApi<E = never> {
   readonly shell: ShellApi<E>
   readonly reference: ReferenceApi<E>
   readonly worktree: WorktreeApi<E>
-  readonly preferences: PreferencesApi<E>
+  readonly settings: SettingsApi<E>
   readonly vcs: VcsApi<E>
   readonly debug: DebugApi<E>
   readonly migration: MigrationApi<E>
