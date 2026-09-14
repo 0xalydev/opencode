@@ -1,8 +1,8 @@
 /** @jsxImportSource @opentui/solid */
-import type { FileDiffInfo, LocationRef } from "@opencode-ai/client"
-import type { Vcs } from "@opencode-ai/schema/vcs"
-import { Plugin } from "@opencode-ai/plugin/tui"
-import type { KeymapCommand, Route } from "@opencode-ai/plugin/tui/context"
+import type { FileDiffInfo, LocationRef } from "@opencode/client"
+import type { Vcs } from "@opencode/schema/vcs"
+import { Plugin } from "@opencode/plugin/tui"
+import type { KeymapCommand, Route } from "@opencode/plugin/tui/context"
 import {
   MouseButton,
   TextAttributes,
@@ -102,7 +102,7 @@ function DiffViewer(props: { context: Plugin.Context }) {
         : props.context.data.location.default()
     },
     undefined,
-    { equals: (a, b) => a.directory === b.directory && a.workspaceID === b.workspaceID },
+    { equals: (a, b) => a.directory === b.directory },
   )
   const baseKey = createMemo(() =>
     JSON.stringify([locationKey(location()), props.context.data.location.vcs.info(location())?.branch.current]),

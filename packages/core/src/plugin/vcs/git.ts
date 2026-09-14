@@ -1,14 +1,15 @@
 export * as VcsGitPlugin from "./git.js"
 
-import { define } from "@opencode-ai/plugin/effect/plugin"
+import { define } from "@opencode/plugin/effect/plugin"
 import { Effect } from "effect"
 import { ChildProcess } from "effect/unstable/process"
-import { FileDiff } from "@opencode-ai/schema/file-diff"
-import { Base, BranchList, FileStatus, Info, Mode } from "@opencode-ai/schema/vcs"
-import { AppProcess } from "@opencode-ai/util/process"
+import { FileDiff } from "@opencode/schema/file-diff"
+import { Base, BranchList, FileStatus, Info, Mode } from "@opencode/schema/vcs"
+import { AppProcess } from "@opencode/util/process"
 import { Location } from "../../location.js"
 import type { Adapter, BranchOptions, DiffOptions } from "../../vcs.js"
 import { DiffError } from "../../vcs.js"
+import { gitExecutable } from "../../util/git-executable.js"
 import {
   chunksByFile,
   emptyPatch,
@@ -168,7 +169,7 @@ function makeGit(proc: AppProcess.Interface) {
   const run = Effect.fnUntraced(
     function* (args: string[], opts: { cwd: string; maxOutputBytes?: number }) {
       const result = yield* proc.run(
-        ChildProcess.make("git", [...cfg, ...args], {
+        ChildProcess.make(gitExecutable, [...cfg, ...args], {
           cwd: opts.cwd,
           extendEnv: true,
           stdin: "ignore",

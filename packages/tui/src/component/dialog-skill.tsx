@@ -7,8 +7,8 @@ import { errorMessage } from "../util/error"
 import { useData } from "../context/data"
 import { useClient } from "../context/client"
 import { useToast } from "../ui/toast"
-import type { Skill } from "@opencode-ai/schema/skill"
-import type { LocationRef } from "@opencode-ai/client"
+import type { Skill } from "@opencode/schema/skill"
+import type { LocationRef } from "@opencode/client"
 
 export type DialogSkillProps = {
   location?: LocationRef

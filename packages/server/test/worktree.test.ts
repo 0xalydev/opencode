@@ -6,7 +6,7 @@ import { Effect } from "effect"
 import { tmpdir } from "../../core/test/fixture/tmpdir"
 import { it } from "../../core/test/lib/effect"
 import { startServer } from "./fixture/server"
-import { OpenCode } from "@opencode-ai/client"
+import { OpenCode } from "@opencode/client"
 import { initRepo } from "../../core/test/fixture/git"
 
 it.live(
@@ -174,54 +174,6 @@ it.live(
           force: false,
         })
         expect((await api.worktree.list({ location: { directory: nested } })).filter((row) => row.strategy)).toEqual([])
-      })
-    }),
-  30_000,
-)
-
-it.live(
-  "plugin calls await a different location's strategy and directory configuration",
-  () =>
-    Effect.gen(function* () {
-      const tmp = yield* Effect.acquireDisposable(Effect.promise(() => tmpdir("opencode-worktree-delegate-")))
-      const source = path.join(tmp.path, "source")
-      const target = path.join(tmp.path, "target")
-      const destination = path.join(tmp.path, "copies")
-      yield* Effect.promise(async () => {
-        for (const directory of [source, target]) {
-          await fs.mkdir(directory)
-          await initRepo(directory)
-          await $`git remote add origin git@github.com:example/delegate-fixture.git`.cwd(directory).quiet()
-        }
-        await Bun.write(
-          path.join(source, "opencode.json"),
-          JSON.stringify({
-            plugins: [
-              { package: path.join(import.meta.dir, "fixture/worktree-delegate"), options: { directory: target } },
-            ],
-          }),
-        )
-        await Bun.write(
-          path.join(target, "opencode.json"),
-          JSON.stringify({
-            worktree: { directory: destination },
-            plugins: [
-              { package: path.join(import.meta.dir, "fixture/worktree-plugin"), options: { strategy: "target-copy" } },
-            ],
-          }),
-        )
-      })
-      const server = yield* startServer(path.join(tmp.path, "config"))
-      const api = OpenCode.make({ baseUrl: server.base, headers: server.headers })
-      yield* Effect.promise(async () => {
-        await api.location.get({ location: { directory: source } })
-        const url = new URL("/api/plugin/await-activation", server.base)
-        url.searchParams.set("location[directory]", source)
-        expect((await fetch(url, { method: "POST", headers: server.headers })).status).toBe(204)
-        expect(await api.worktree.list({ location: { directory: target } })).toContainEqual({
-          directory: path.join(destination, "delegated"),
-          strategy: "target-copy",
-        })
       })
     }),
   30_000,

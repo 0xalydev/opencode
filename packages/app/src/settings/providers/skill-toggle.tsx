@@ -1,4 +1,4 @@
-import { Switch } from "@opencode-ai/ui/switch"
+import { Switch } from "@opencode/ui/switch"
 import { useMutation } from "@tanstack/solid-query"
 import { Show } from "solid-js"
 import { useLanguage } from "@/runtime/i18n/language"

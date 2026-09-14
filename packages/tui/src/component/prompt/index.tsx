@@ -32,7 +32,7 @@ import { stringWidth } from "../../util/string-width"
 import { createStore, produce, unwrap } from "solid-js/store"
 import { emptyPrompt, usePromptHistory, type PromptInfo, type PromptPartRef } from "../../prompt/history"
 import { saveDraft, takeDraft } from "./draft-stash"
-import { Skill } from "@opencode-ai/schema/skill"
+import { Skill } from "@opencode/schema/skill"
 import { computePromptTraits } from "../../prompt/traits"
 import { expandPastedTextPlaceholders, expandTrackedPastedText } from "../../prompt/part"
 import { usePromptStash } from "../../prompt/stash"
@@ -57,7 +57,7 @@ import { Keymap, type KeymapCommand } from "../../context/keymap"
 import { useInteractivity } from "../../context/interactivity"
 import { abbreviateHome } from "../../runtime"
 import { Slot } from "../../plugin/render"
-import type { SessionInbox } from "@opencode-ai/schema/session-inbox"
+import type { SessionInbox } from "@opencode/schema/session-inbox"
 import {
   deduplicatePromptImages,
   preserveMentionlessPromptAttachments,
@@ -335,8 +335,8 @@ export function Prompt(props: PromptProps) {
   let promptPartTypeId = 0
   const event = useEvent()
 
-  event.on("tui.prompt.append", (evt, { workspace }) => {
-    if (workspace !== (currentLocation.current?.workspaceID ?? data.location.default().workspaceID)) return
+  event.on("tui.prompt.append", (evt, { directory }) => {
+    if (directory !== (currentLocation.current?.directory ?? data.location.default().directory)) return
     if (!input || input.isDestroyed) return
     input.insertText(evt.data.text)
     setTimeout(() => {
@@ -615,11 +615,11 @@ export function Prompt(props: PromptProps) {
         },
       },
       {
-        title: "Move session",
-        desc: "Move to another project dir",
+        title: "Manage workspaces",
+        desc: "Manage workspaces",
         name: "session.move",
         category: "Session",
-        slash: { name: "move" },
+        slash: { name: "worktrees" },
         run: () => {
           move.open()
         },
@@ -1234,7 +1234,7 @@ export function Prompt(props: PromptProps) {
       session = data.session.get(created.id)
       newSession = {
         gate: created.request.then(async (info) => {
-          if (info.location.workspaceID === undefined && terminalEnvironment.variables !== undefined) {
+          if (terminalEnvironment.variables !== undefined) {
             await client.api.session.environment({ sessionID: created.id, variables: terminalEnvironment.variables })
           }
         }),
@@ -1383,8 +1383,6 @@ export function Prompt(props: PromptProps) {
         })
       if (pendingEditorSelection) editor.markSelectionSent()
     }
-
-    sessionTabs.promote(target)
 
     // Optimistic admission puts the message in the store synchronously, so
     // the session view renders it on arrival.
@@ -1849,7 +1847,7 @@ export function Prompt(props: PromptProps) {
               <PromptMetadataRow
                 mode={store.mode}
                 agent={agentLabel()}
-                auto={local.permission.mode === "auto"}
+                auto={local.permission.mode === "autoaccept"}
                 model={promptDisplay().modelLabel}
                 provider={promptDisplay().providerLabel}
                 variant={promptDisplay().variant}

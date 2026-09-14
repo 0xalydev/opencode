@@ -14,72 +14,39 @@ const session = (viewed: number): SessionInfo => ({
   location: { directory: "/project" },
 })
 
-test("global preferences reproject skill availability across locations without refetching definitions", async () => {
-  const listeners = new Set<Parameters<CreateDataInput["event"]["listen"]>[0]>()
-  const skill = { id: "effect", name: "Effect", location: "/skills/effect.md", content: "Use Effect" }
-  let disabled = false
-  let skillReads = 0
+test("uses the configured initial window and retains normal cursor page sizes", async () => {
+  const requests: { limit: string | null; cursor: string | null }[] = []
   const api = OpenCode.make({
     baseUrl: "http://opencode.local",
     fetch: async (input, init) => {
       const url = new URL((input instanceof Request ? input : new Request(input, init)).url)
-      if (url.pathname === "/api/preferences")
-        return Response.json(
-          disabled ? [{ target: { kind: "skill.activation", id: skill.id }, value: "disabled" }] : [],
-        )
-      const location = { directory: url.searchParams.get("location[directory]") ?? "/first" }
-      if (url.pathname === "/api/skill") {
-        skillReads++
-        return Response.json({ location, data: [skill] })
-      }
-      throw new Error(`Unexpected request: ${url}`)
+      const cursor = url.searchParams.get("cursor")
+      requests.push({ limit: url.searchParams.get("limit"), cursor })
+      return Response.json({
+        data: [{ id: cursor ? "msg_1" : "msg_2", type: "user", text: "History", time: { created: cursor ? 1 : 2 } }],
+        cursor: cursor ? {} : { next: "older" },
+      })
     },
   })
   const setup = createRoot((dispose) => ({
     data: createData({
       api: () => api,
-      directory: "/first",
-      event: {
-        on: () => () => {},
-        listen(handler) {
-          listeners.add(handler)
-          return () => listeners.delete(handler)
-        },
-      },
+      directory: "/project",
+      initialMessageLimit: () => 40,
+      event: { on: () => () => {}, listen: () => () => {} },
     }),
     dispose,
   }))
   try {
-    await Promise.all([
-      setup.data.preferences.sync(),
-      setup.data.location.skill.sync({ directory: "/first" }),
-      setup.data.location.skill.sync({ directory: "/second" }),
+    await setup.data.session.message.sync("ses_refresh")
+    await setup.data.session.message.sync("ses_refresh")
+    expect(requests).toEqual([{ limit: "40", cursor: null }])
+    await setup.data.session.message.loadMore("ses_refresh")
+    expect(requests).toEqual([
+      { limit: "40", cursor: null },
+      { limit: "20", cursor: "older" },
     ])
-    disabled = true
-    const event: OpenCodeEvent = {
-      id: "evt_preference",
-      type: "preferences.updated",
-      created: 1,
-      data: { target: { kind: "skill.activation", id: skill.id } },
-    }
-    listeners.forEach((listener) => listener({ name: event.type, details: event }))
-    await wait(
-      () =>
-        setup.data.location.skill.available({ directory: "/first" })?.length === 0 &&
-        setup.data.location.skill.available({ directory: "/second" })?.length === 0 &&
-        setup.data.preferences.list()?.[0]?.value === "disabled",
-    )
-    expect(setup.data.location.skill.list({ directory: "/first" })).toEqual([skill])
-
-    disabled = false
-    listeners.forEach((listener) => listener({ name: event.type, details: event }))
-    await wait(
-      () =>
-        setup.data.location.skill.available({ directory: "/first" })?.length === 1 &&
-        setup.data.location.skill.available({ directory: "/second" })?.length === 1 &&
-        setup.data.preferences.list()?.length === 0,
-    )
-    expect(skillReads).toBe(2)
+    expect(setup.data.session.message.list("ses_refresh").map((message) => message.id)).toEqual(["msg_1", "msg_2"])
   } finally {
     setup.dispose()
   }
@@ -335,7 +302,7 @@ test("adopts cached directory-project sessions when their repository is resolved
         ...session(0),
         id: "ses_remote",
         projectID: "directory-root",
-        location: { directory: "/repo", workspaceID: "workspace-remote" },
+        location: { directory: "/repo" },
       },
     ]
     sessions.forEach((item) => setup.data.session.remember(item))
@@ -375,7 +342,7 @@ test("adopts cached directory-project sessions when their repository is resolved
     expect(setup.data.session.get("ses_escaped")?.projectID).toBe("global")
     expect(setup.data.session.get("ses_other")?.projectID).toBe("other-repository")
     expect(setup.data.session.get("ses_sibling")?.projectID).toBe("global")
-    expect(setup.data.session.get("ses_remote")?.projectID).toBe("directory-root")
+    expect(setup.data.session.get("ses_remote")?.projectID).toBe("repository")
     await wait(() => setup.data.session.get("ses_uncached")?.projectID === "repository")
     expect(setup.data.session.get("ses_uncached")?.subpath).toBe("app")
   } finally {
@@ -383,7 +350,7 @@ test("adopts cached directory-project sessions when their repository is resolved
   }
 })
 
-test("refreshes global credential events across every loaded location and workspace", async () => {
+test("refreshes global credential events across every loaded location", async () => {
   const listeners = new Set<Parameters<CreateDataInput["event"]["listen"]>[0]>()
   const requests: URL[] = []
   const api = OpenCode.make({
@@ -396,7 +363,6 @@ test("refreshes global credential events across every loaded location and worksp
       return Response.json({
         location: {
           directory,
-          workspaceID: url.searchParams.get("location[workspace]") ?? undefined,
           project: { id: "project", directory, canonical: directory },
         },
         data: [],
@@ -418,7 +384,7 @@ test("refreshes global credential events across every loaded location and worksp
     }),
     dispose,
   }))
-  const locations = [{ directory: "/project" }, { directory: "/other", workspaceID: "workspace-other" }]
+  const locations = [{ directory: "/project" }, { directory: "/other" }]
 
   try {
     await Promise.all(
@@ -441,14 +407,10 @@ test("refreshes global credential events across every loaded location and worksp
     listeners.forEach((listener) => listener({ name: updated.type, details: updated }))
     await wait(() => requests.length === 2)
     expect(
-      requests.map((url) => [
-        url.pathname,
-        url.searchParams.get("location[directory]"),
-        url.searchParams.get("location[workspace]"),
-      ]),
+      requests.map((url) => [url.pathname, url.searchParams.get("location[directory]")]),
     ).toEqual([
-      ["/api/integration", "/project", null],
-      ["/api/integration", "/other", "workspace-other"],
+      ["/api/integration", "/project"],
+      ["/api/integration", "/other"],
     ])
     requests.length = 0
 
@@ -462,17 +424,13 @@ test("refreshes global credential events across every loaded location and worksp
       listeners.forEach((listener) => listener({ name: switched.type, details: switched }))
       await wait(() => requests.length === 4)
       expect(
-        requests.map((url) => [
-          url.pathname,
-          url.searchParams.get("location[directory]"),
-          url.searchParams.get("location[workspace]"),
-        ]),
+        requests.map((url) => [url.pathname, url.searchParams.get("location[directory]")]),
       ).toEqual(
         expect.arrayContaining([
-          ["/api/model", "/project", null],
-          ["/api/provider", "/project", null],
-          ["/api/model", "/other", "workspace-other"],
-          ["/api/provider", "/other", "workspace-other"],
+          ["/api/model", "/project"],
+          ["/api/provider", "/project"],
+          ["/api/model", "/other"],
+          ["/api/provider", "/other"],
         ]),
       )
       locations.forEach((location, index) =>
@@ -498,7 +456,6 @@ test("refreshes references for the location an update names", async () => {
       return Response.json({
         location: {
           directory,
-          workspaceID: url.searchParams.get("location[workspace]") ?? undefined,
           project: { id: "project", directory, canonical: directory },
         },
         data: [],
@@ -520,7 +477,7 @@ test("refreshes references for the location an update names", async () => {
     }),
     dispose,
   }))
-  const other = { directory: "/other", workspaceID: "workspace-other" }
+  const other = { directory: "/other" }
 
   try {
     await Promise.all([setup.data.location.reference.sync(), setup.data.location.reference.sync(other)])
@@ -535,11 +492,10 @@ test("refreshes references for the location an update names", async () => {
     }
     listeners.forEach((listener) => listener({ name: updated.type, details: updated }))
     await wait(() => requests.length === 1)
-    expect([
-      requests[0]!.pathname,
-      requests[0]!.searchParams.get("location[directory]"),
-      requests[0]!.searchParams.get("location[workspace]"),
-    ]).toEqual(["/api/reference", "/other", "workspace-other"])
+    expect([requests[0]!.pathname, requests[0]!.searchParams.get("location[directory]")]).toEqual([
+      "/api/reference",
+      "/other",
+    ])
   } finally {
     setup.dispose()
   }
@@ -814,77 +770,6 @@ test.each(["success", "failure", "cancel", "cancel-retry", "cancel-page", "join-
     }
   },
 )
-
-test("preserves assistant content replacement events across an active message read", async () => {
-  const listeners = new Set<Parameters<CreateDataInput["event"]["listen"]>[0]>()
-  const release = Promise.withResolvers<void>()
-  let requests = 0
-  const content = [
-    { type: "text" as const, text: "replacement" },
-    { type: "reasoning" as const, text: "reasoning", time: { created: 3 } },
-  ]
-  const api = OpenCode.make({
-    baseUrl: "http://opencode.local",
-    fetch: async () => {
-      const current = ++requests
-      if (current === 2) await release.promise
-      return Response.json({
-        data: [
-          {
-            id: "msg_assistant",
-            type: "assistant",
-            agent: "build",
-            model: { id: "model", providerID: "provider" },
-            content: current === 3 ? content : [{ type: "text", text: "original" }],
-            time: { created: 1, completed: 2 },
-          },
-        ],
-        cursor: {},
-      })
-    },
-  })
-  const setup = createRoot((dispose) => ({
-    data: createData({
-      api: () => api,
-      directory: "/project",
-      event: {
-        on: () => () => {},
-        listen(handler) {
-          listeners.add(handler)
-          return () => listeners.delete(handler)
-        },
-      },
-    }),
-    dispose,
-  }))
-
-  try {
-    await setup.data.session.message.sync("ses_refresh")
-    setup.data.session.message.invalidate("ses_refresh")
-    const stale = setup.data.session.message.sync("ses_refresh")
-    await wait(() => requests === 2)
-    const updated: OpenCodeEvent = {
-      id: "evt_message_updated",
-      created: 3,
-      type: "session.message.content.updated",
-      durable: { aggregateID: "ses_refresh", seq: 3, version: 1 },
-      data: {
-        sessionID: "ses_refresh",
-        messageID: "msg_assistant",
-        content,
-      },
-    }
-    listeners.forEach((listener) => listener({ name: updated.type, details: updated }))
-
-    expect(setup.data.session.message.list("ses_refresh")[0]).toMatchObject({ content })
-    release.resolve()
-    await stale
-    await wait(() => requests === 3)
-    expect(setup.data.session.message.list("ses_refresh")[0]).toMatchObject({ content })
-  } finally {
-    setup.dispose()
-  }
-})
 
 test.each([
   "session.execution.succeeded",

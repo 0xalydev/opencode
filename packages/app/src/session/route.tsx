@@ -1,8 +1,8 @@
 import { ErrorBoundary, createEffect, createMemo, Show, type ParentProps } from "solid-js"
 import { useParams } from "@solidjs/router"
-import { DataProvider } from "@opencode-ai/session-ui/context"
-import { SessionUserMessage } from "@opencode-ai/session-ui/message"
-import { TextShimmer } from "@opencode-ai/ui/text-shimmer"
+import { DataProvider } from "@opencode/session-ui/context"
+import { SessionUserMessage } from "@opencode/session-ui/message"
+import { TextShimmer } from "@opencode/ui/text-shimmer"
 import { CommentsProvider } from "@/composer/comments"
 import { readPromptPresentation } from "@/composer/comment-note"
 import { FileProvider } from "@/workspaces/files/model"
@@ -136,7 +136,7 @@ function ResolvedTargetSessionRoute() {
     >
       <Show when={directory()} fallback={<PendingSessionState sessionID={params.id} />}>
         {(value) => (
-          <LocationProvider directory={value} workspaceID={() => current()?.location.workspaceID}>
+          <LocationProvider directory={value}>
             <SessionUIProvider directory={value()} server={server.key}>
               <TargetSessionPage />
             </SessionUIProvider>

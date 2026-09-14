@@ -1,19 +1,23 @@
 export * as FileSystem from "./filesystem.js"
 
-import { makeLocationNode } from "@opencode-ai/util/effect/app-node"
+import { makeLocationNode } from "@opencode/util/effect/app-node"
 import path from "path"
 import { Context, Effect, Layer, Schema } from "effect"
-import { FSUtil } from "@opencode-ai/util/fs-util"
+import { FSUtil } from "@opencode/util/fs-util"
 import { Location } from "./location.js"
 import { PositiveInt, RelativePath } from "./schema.js"
 import { FileSystemSearch } from "./filesystem/search.js"
-import { Entry, FileSystem, FindInput } from "@opencode-ai/schema/filesystem"
-export { Entry, Match, Submatch } from "@opencode-ai/schema/filesystem"
+import { Entry, FileSystem, FindInput } from "@opencode/schema/filesystem"
+export { Entry, Match, Submatch } from "@opencode/schema/filesystem"
 
 export const ReadInput = Schema.Struct({
   path: RelativePath,
 })
 export type ReadInput = typeof ReadInput.Type
+
+export class NotFoundError extends Schema.TaggedError<NotFoundError>()("FileSystem.NotFoundError", {
+  path: RelativePath,
+}) {}
 
 export const Content = Schema.Struct({
   uri: Schema.String,
@@ -53,7 +57,9 @@ export class GrepInput extends Schema.Class<GrepInput>("FileSystem.GrepInput")({
 export const Event = FileSystem.Event
 
 export interface Interface {
-  readonly read: (input: ReadInput) => Effect.Effect<{ readonly content: Uint8Array; readonly mime: string }>
+  readonly read: (
+    input: ReadInput,
+  ) => Effect.Effect<{ readonly content: Uint8Array; readonly mime: string }, NotFoundError>
   readonly list: (input?: ListInput) => Effect.Effect<Entry[]>
   readonly find: (input: FindInput) => Effect.Effect<Entry[]>
 }
@@ -77,18 +83,39 @@ const baseLayer = Layer.effect(
       const absolute = path.resolve(location.directory, input ?? ".")
       if (!FSUtil.contains(location.directory, absolute))
         return yield* Effect.die(new Error("Path escapes the location"))
-      const real = yield* fs.realPath(absolute).pipe(Effect.orDie)
+      const real = yield* fs.realPath(absolute)
       if (!FSUtil.contains(root, real)) return yield* Effect.die(new Error("Path escapes the location"))
       return { absolute, real, directory: location.directory }
     })
     return Service.of({
       find: search.find,
       read: Effect.fn("FileSystem.read")(function* (input) {
-        const target = yield* resolve(input.path)
-        const info = yield* fs.stat(target.real).pipe(Effect.orDie)
+        const target = yield* resolve(input.path).pipe(
+          Effect.catchReason(
+            "PlatformError",
+            "NotFound",
+            () => Effect.fail(new NotFoundError({ path: input.path })),
+            (_, error) => Effect.die(error),
+          ),
+        )
+        const info = yield* fs.stat(target.real).pipe(
+          Effect.catchReason(
+            "PlatformError",
+            "NotFound",
+            () => Effect.fail(new NotFoundError({ path: input.path })),
+            (_, error) => Effect.die(error),
+          ),
+        )
         if (info.type !== "File") return yield* Effect.die(new Error("Path is not a file"))
         return {
-          content: yield* fs.readFile(target.real).pipe(Effect.orDie),
+          content: yield* fs.readFile(target.real).pipe(
+            Effect.catchReason(
+              "PlatformError",
+              "NotFound",
+              () => Effect.fail(new NotFoundError({ path: input.path })),
+              (_, error) => Effect.die(error),
+            ),
+          ),
           mime: FSUtil.mimeType(target.real),
         }
       }),

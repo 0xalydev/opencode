@@ -39,9 +39,9 @@ import type {
   OpenCodeClient,
   WebSearchProvider,
 } from "../promise"
-import { Worktree } from "@opencode-ai/schema/worktree"
-import { SessionID } from "@opencode-ai/schema/session-id"
-import { SessionMessage } from "@opencode-ai/schema/session-message"
+import { Worktree } from "@opencode/schema/worktree"
+import { SessionID } from "@opencode/schema/session-id"
+import { SessionMessage } from "@opencode/schema/session-message"
 import {
   isFormAlreadySettledError,
   isFormNotFoundError,
@@ -49,7 +49,7 @@ import {
   type SessionPromptInput,
 } from "../promise"
 import { createStore, produce, reconcile } from "solid-js/store"
-import type { SessionInbox } from "@opencode-ai/schema/session-inbox"
+import type { SessionInbox } from "@opencode/schema/session-inbox"
 import { batch, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
 
 export type DataSessionStatus = "idle" | "running"
@@ -58,6 +58,8 @@ type OpenCodeEventMap = { [Type in OpenCodeEvent["type"]]: Extract<OpenCodeEvent
 export type CreateDataInput = {
   readonly api: () => OpenCodeClient
   readonly directory: string
+  /** Raw-message window used for an initial transcript read. Older pages retain their normal size. */
+  readonly initialMessageLimit?: () => number
   readonly event: {
     readonly on: <Type extends OpenCodeEvent["type"]>(
       type: Type,
@@ -131,7 +133,7 @@ export function locationKey(location: LocationRef) {
 }
 
 function locationQuery(ref: LocationRef) {
-  return { directory: ref.directory, workspace: ref.workspaceID }
+  return { directory: ref.directory }
 }
 
 function formRequestOptions(sessionID: string, ref?: LocationRef) {
@@ -139,7 +141,6 @@ function formRequestOptions(sessionID: string, ref?: LocationRef) {
   return {
     headers: {
       "x-opencode-directory": encodeURIComponent(ref.directory),
-      ...(ref.workspaceID ? { "x-opencode-workspace": ref.workspaceID } : {}),
     },
   }
 }
@@ -695,6 +696,10 @@ export function createData(config: CreateDataInput) {
         })
         return
       }
+      case "session.permissions.updated":
+        if (store.session.info[event.data.sessionID])
+          setStore("session", "info", event.data.sessionID, "permissions", event.data.permissions)
+        return
       case "session.moved": {
         const current = store.session.info[event.data.sessionID]
         if (current) {
@@ -723,7 +728,6 @@ export function createData(config: CreateDataInput) {
           const explicit = event.data.adopted?.includes(info.projectID)
           const directory = explicit ? store.project.info[info.projectID]?.canonical : info.location.directory
           if (!directory) {
-            if (info.location.workspaceID) continue
             result.session.invalidate(sessionID)
             refresh(() => result.session.sync(sessionID))
             continue
@@ -732,7 +736,6 @@ export function createData(config: CreateDataInput) {
             {
               projectID: info.projectID,
               directory,
-              workspaceID: info.location.workspaceID,
             },
             event.data,
           )
@@ -829,16 +832,6 @@ export function createData(config: CreateDataInput) {
           match.time.completed = event.created
         })
         return
-      case "session.message.content.updated": {
-        if (store.session.message[event.data.sessionID])
-          message.editAssistant(event.data.sessionID, event.data.messageID, (assistant) => {
-            assistant.content = [...event.data.content]
-          })
-        if (!sync.pending(`session.message:${event.data.sessionID}`)) return
-        result.session.message.invalidate(event.data.sessionID)
-        refresh(() => result.session.message.sync(event.data.sessionID))
-        return
-      }
       case "session.step.started":
         message.update(event.data.sessionID, (draft, index) => {
           const position = index.get(event.data.assistantMessageID)
@@ -1034,6 +1027,18 @@ export function createData(config: CreateDataInput) {
           if (currentAssistant) currentAssistant.retry = undefined
         })
         if (event.type === "session.execution.interrupted" && event.data.reason === "shutdown") return
+        // Mirror the projected idle marker so turn boundaries match before the next message read.
+        message.insert(event.data.sessionID, {
+          id: messageIDFromEvent(event.id),
+          type: "idle",
+          outcome:
+            event.type === "session.execution.succeeded"
+              ? "succeeded"
+              : event.type === "session.execution.failed"
+                ? "failed"
+                : "interrupted",
+          time: { created: event.created },
+        })
         // An event can overtake the first read; queue a revalidation when that read is still active.
         if (!store.session.info[event.data.sessionID] && !sync.has(`session:${event.data.sessionID}`)) return
         result.session.invalidate(event.data.sessionID)
@@ -1085,8 +1090,11 @@ export function createData(config: CreateDataInput) {
               reason: event.data.reason,
               model: event.data.model,
               providerState: event.data.providerState,
+              providerContext: event.data.providerContext,
               summary: event.data.text,
               recent: event.data.recent,
+              cost: event.data.cost,
+              tokens: event.data.tokens,
             })
             return
           }
@@ -1097,8 +1105,11 @@ export function createData(config: CreateDataInput) {
             reason: event.data.reason,
             model: event.data.model,
             providerState: event.data.providerState,
+            providerContext: event.data.providerContext,
             summary: event.data.text,
             recent: event.data.recent,
+            cost: event.data.cost,
+            tokens: event.data.tokens,
             time: { created: event.created },
           })
         })
@@ -1118,6 +1129,8 @@ export function createData(config: CreateDataInput) {
               message: "Compaction failed before recording an error",
             },
             metadata: current?.type === "compaction" ? current.metadata : event.metadata,
+            cost: event.data.cost,
+            tokens: event.data.tokens,
             time: current?.type === "compaction" ? current.time : { created: event.created },
           }
           if (current?.type === "compaction") {
@@ -1298,7 +1311,7 @@ export function createData(config: CreateDataInput) {
   const skills = locationResource("skill", (location) => api().skill.list({ location }))
   const shells = locationResource("shell", async (location) => {
     const response = await api().shell.list({ location })
-    const ref = { directory: response.location.directory, workspaceID: response.location.workspaceID }
+    const ref = { directory: response.location.directory }
     return {
       location: response.location,
       data: Object.fromEntries(response.data.map((info) => [info.id, { ...info, location: ref }])),
@@ -1588,7 +1601,11 @@ export function createData(config: CreateDataInput) {
         },
         sync(sessionID: string) {
           return sync.run(`session.message:${sessionID}`, async () => {
-            const response = await api().message.list({ sessionID, limit: messagePageLimit, order: "desc" })
+            const response = await api().message.list({
+              sessionID,
+              limit: config.initialMessageLimit?.() ?? messagePageLimit,
+              order: "desc",
+            })
             const fetched = response.data.toReversed()
             // Same protection as the pending sync: a re-fetch racing an
             // admission must not wipe its local transcript row.
@@ -1602,9 +1619,11 @@ export function createData(config: CreateDataInput) {
               (item) => !ids.has(item.id) && (outbox.has(item.id) || admitted.has(item.id)),
             )
             const messages = local.length === 0 ? fetched : [...fetched, ...local]
-            messageIndex.set(sessionID, new Map(messages.map((message, index) => [message.id, index])))
-            setStore("session", "message", sessionID, reconcile(messages))
-            setStore("session", "messageCursor", sessionID, response.cursor.next ?? undefined)
+            batch(() => {
+              messageIndex.set(sessionID, new Map(messages.map((message, index) => [message.id, index])))
+              setStore("session", "message", sessionID, reconcile(messages))
+              setStore("session", "messageCursor", sessionID, response.cursor.next ?? undefined)
+            })
           })
         },
         more(sessionID: string) {
@@ -1720,7 +1739,6 @@ export function createData(config: CreateDataInput) {
               })
               const location = {
                 directory: response.location.directory,
-                workspaceID: response.location.workspaceID,
               }
               const locationID = locationKey(location)
               setStore("session", "form", sessionID, [
@@ -1809,7 +1827,7 @@ export function createData(config: CreateDataInput) {
           if (!store.location[key]) setStore("location", key, {})
           setStore("location", key, "info", location)
           if (!ref) {
-            setDefaultLocation({ directory: location.directory, workspaceID: location.workspaceID })
+            setDefaultLocation({ directory: location.directory })
           }
         })
       },
@@ -1852,7 +1870,7 @@ export function createData(config: CreateDataInput) {
       agent: locationResource("agent", (location) => api().agent.list({ location })),
       command: locationResource("command", (location) => api().command.list({ location })),
       config: locationResource("config", async (location) => ({
-        location: { directory: location.directory, workspaceID: location.workspace },
+        location: { directory: location.directory },
         data: await api().config.get({ location }),
       })),
       integration: locationResource("integration", (location) => api().integration.list({ location })),

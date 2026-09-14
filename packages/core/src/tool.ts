@@ -1,11 +1,11 @@
 export * as Tool from "./tool.js"
-export { CallID, Content, Error, FileContent, TextContent } from "@opencode-ai/schema/tool"
-export type { Context, Metadata, Namespace, Options, Result } from "@opencode-ai/schema/tool"
+export { CallID, Content, Error, FileContent, TextContent } from "@opencode/schema/tool"
+export type { Context, Metadata, Namespace, Options, Result } from "@opencode/schema/tool"
 
-import { ToolDefinition, type ToolCall } from "@opencode-ai/ai"
-import { Tool } from "@opencode-ai/schema/tool"
+import { ToolDefinition, type ToolCall } from "@opencode/ai"
+import { Tool } from "@opencode/schema/tool"
 import { Context, Effect, Layer, Result, Schema, SchemaIssue, Types } from "effect"
-import { makeLocationNode } from "@opencode-ai/util/effect/app-node"
+import { makeLocationNode } from "@opencode/util/effect/app-node"
 import type { Agent } from "./agent.js"
 import { CodeModeCatalog } from "./codemode/catalog.js"
 import { CodeModeTool } from "./codemode/tool.js"
@@ -264,7 +264,9 @@ const layer = Layer.effect(
                 return yield* executeTool(codeModeTool, name, event.input, context)
               const tool = direct.get(name)
               if (tool) return yield* executeTool(tool, name, event.input, context)
-              return yield* new Tool.Error({ message: `Unknown tool: ${name}` })
+              return yield* new Tool.Error({
+                message: `No tool named "${name}" is currently available. Please use a tool from the available tool list.`,
+              })
             }),
           }
         }),

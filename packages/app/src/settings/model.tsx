@@ -1,8 +1,8 @@
 import { reconcile, unwrap } from "solid-js/store"
 import { createEffect, createMemo } from "solid-js"
 import { Effect, Option, Schema, SchemaGetter } from "effect"
-import { createSimpleContext } from "@opencode-ai/ui/context"
-import { timelinePresets, type TimelineCategory, type TimelineDetail } from "@opencode-ai/session-ui/timeline/detail"
+import { createSimpleContext } from "@opencode/ui/context"
+import { timelinePresets, type TimelineCategory, type TimelineDetail } from "@opencode/session-ui/timeline/detail"
 import { persisted } from "@/runtime/persistence/storage"
 import { Persistence } from "@/runtime/persistence/schema"
 import { ScopedKey, type ServerScope } from "@/runtime/server/scope"
@@ -79,7 +79,6 @@ const generalSchema = Persistence.struct({
   showFileTree: Schema.Boolean,
   showNavigation: Schema.Boolean,
   showSearch: Schema.Boolean,
-  showStatus: Schema.Boolean,
   showProjectIcon: Schema.Boolean,
   showTerminal: Schema.Boolean,
   timelineDetail: Persistence.struct({
@@ -95,6 +94,7 @@ const generalSchema = Persistence.struct({
   mobileDiffWrap: Schema.Boolean,
   terminalPlacement: Schema.Literals(["side", "bottom"]),
   followUpBehavior: Schema.Literals(["queue", "steer"]),
+  experimentalBrowser: Schema.Boolean,
 })
 
 const appearanceSchema = Persistence.struct({
@@ -134,6 +134,7 @@ const soundsSchema = Persistence.struct({
 
 export const settingsSchema = Persistence.struct({
   general: generalSchema,
+  sessionSummary: Persistence.struct({ projectExpanded: Schema.Boolean, serverExpanded: Schema.Boolean }),
   appearance: appearanceSchema,
   keybinds: Persistence.record(Schema.String.pipe(Schema.catchDecoding(() => Effect.succeed(Option.none())))),
   permissions: permissionsSchema,
@@ -242,7 +243,6 @@ export const defaultSettings: Settings = {
     showFileTree: false,
     showNavigation: false,
     showSearch: false,
-    showStatus: false,
     showProjectIcon: false,
     showTerminal: false,
     timelineDetail: { ...timelinePresets[2].value },
@@ -251,7 +251,9 @@ export const defaultSettings: Settings = {
     mobileDiffWrap: true,
     terminalPlacement: "side",
     followUpBehavior: "steer",
+    experimentalBrowser: false,
   },
+  sessionSummary: { projectExpanded: true, serverExpanded: true },
   appearance: { fontSize: 14, mono: "", sans: "", terminal: "", tabLayout: "horizontal", showProjectName: false },
   keybinds: {},
   permissions: { autoApprove: false },
@@ -278,7 +280,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
     const [store, setStore, , ready] = persisted({ key: "settings.v3" }, settingsPersistence, defaultSettings)
     const showFileTree = withFallback(() => store.general?.showFileTree, defaultSettings.general.showFileTree)
     const showSearch = withFallback(() => store.general?.showSearch, defaultSettings.general.showSearch)
-    const showStatus = withFallback(() => store.general?.showStatus, defaultSettings.general.showStatus)
     const showCustomAgents = withFallback(
       () => store.general?.showCustomAgents,
       defaultSettings.general.showCustomAgents,
@@ -286,8 +287,12 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
     createEffect(() => {
       if (typeof document === "undefined") return
       const root = document.documentElement
-      root.style.setProperty("--font-family-mono", monoFontFamily(store.appearance?.mono))
+      const mono = monoFontFamily(store.appearance?.mono)
+      root.style.setProperty("--font-family-mono", mono)
       root.style.setProperty("--font-family-sans", sansFontFamily(store.appearance?.sans))
+      // Inline code can first appear during history backfill. Load its selected
+      // face with the shell so that font discovery does not resize that mount.
+      void document.fonts?.load(`440 13px ${mono}`).catch(() => undefined)
     })
 
     return {
@@ -315,10 +320,6 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         showSearch,
         setShowSearch(value: boolean) {
           setStore("general", "showSearch", value)
-        },
-        showStatus,
-        setShowStatus(value: boolean) {
-          setStore("general", "showStatus", value)
         },
         showProjectIcon: withFallback(() => store.general?.showProjectIcon, defaultSettings.general.showProjectIcon),
         setShowProjectIcon(value: boolean) {
@@ -358,11 +359,33 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         setFollowUpBehavior(value: FollowUpBehavior) {
           setStore("general", "followUpBehavior", value)
         },
+        experimentalBrowser: withFallback(
+          () => store.general?.experimentalBrowser,
+          defaultSettings.general.experimentalBrowser,
+        ),
+        setExperimentalBrowser(value: boolean) {
+          setStore("general", "experimentalBrowser", value)
+        },
+      },
+      sessionSummary: {
+        projectExpanded: withFallback(
+          () => store.sessionSummary?.projectExpanded,
+          defaultSettings.sessionSummary.projectExpanded,
+        ),
+        serverExpanded: withFallback(
+          () => store.sessionSummary?.serverExpanded,
+          defaultSettings.sessionSummary.serverExpanded,
+        ),
+        setProjectExpanded(value: boolean) {
+          setStore("sessionSummary", "projectExpanded", value)
+        },
+        setServerExpanded(value: boolean) {
+          setStore("sessionSummary", "serverExpanded", value)
+        },
       },
       visibility: {
         fileTree: showFileTree,
         search: showSearch,
-        status: showStatus,
         customAgents: showCustomAgents,
       },
       appearance: {

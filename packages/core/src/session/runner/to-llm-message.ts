@@ -1,9 +1,17 @@
-import { Message, ToolCallPart, ToolResultPart, type ContentPart, type ProviderMetadata } from "@opencode-ai/ai"
-import type { Model } from "@opencode-ai/schema/model"
+import {
+  Message,
+  ReasoningEfforts,
+  ToolCallPart,
+  ToolResultPart,
+  type ContentPart,
+  type ProviderMetadata,
+} from "@opencode/ai"
+import type { Model } from "@opencode/schema/model"
 import { Option, Schema } from "effect"
 import { fileURLToPath } from "url"
 import { SessionMessage } from "../message.js"
-import type { FileAttachment } from "@opencode-ai/schema/prompt"
+import { SessionProviderContext } from "../provider-context.js"
+import type { FileAttachment } from "@opencode/schema/prompt"
 
 const imageMimes = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"])
 
@@ -221,11 +229,31 @@ const assistant = (message: SessionMessage.Assistant, model: Model.Ref, provider
   ]
 }
 
+const EFFORT_VARIANTS = new Set<string>(ReasoningEfforts)
+
+const variantEffort = (variant: Model.VariantID | undefined) => {
+  if (variant === undefined || variant === "default") return { effort: undefined }
+  return EFFORT_VARIANTS.has(variant) ? { effort: variant } : undefined
+}
+
+const modelSwitched = (message: SessionMessage.ModelSelected, model: Model.Ref): Message[] => {
+  const previous = message.previous
+  if (previous === undefined) return []
+  const same = (ref: Model.Ref) => ref.providerID === model.providerID && ref.id === model.id
+  if (!same(message.model) || !same(previous)) return []
+  const to = variantEffort(message.model.variant)
+  const from = variantEffort(previous.variant)
+  if (to === undefined || from === undefined) return []
+  return [Message.effort({ effort: to.effort, previous: from.effort })]
+}
+
 function toLLMMessage(message: SessionMessage.Info, model: Model.Ref, providerMetadataKey: string): Message[] {
   switch (message.type) {
     case "agent-switched":
-    case "model-switched":
+    case "idle":
       return []
+    case "model-switched":
+      return modelSwitched(message, model)
     case "location-switched":
       return [
         Message.make({
@@ -274,6 +302,9 @@ function toLLMMessage(message: SessionMessage.Info, model: Model.Ref, providerMe
       return assistant(message, model, providerMetadataKey)
     case "compaction":
       if (message.status !== "completed") return []
+      // History selection only keeps native windows the target model can replay.
+      if (SessionProviderContext.isCheckpoint(message))
+        return [...SessionProviderContext.decode(message.providerContext)]
       return [
         Message.make({
           id: message.id,
@@ -295,7 +326,7 @@ ${message.recent}
   }
 }
 
-/** Translate projected Session history into canonical @opencode-ai/ai context. */
+/** Translate projected Session history into canonical @opencode/ai context. */
 export const toLLMMessages = (
   messages: readonly SessionMessage.Info[],
   model: Model.Ref,

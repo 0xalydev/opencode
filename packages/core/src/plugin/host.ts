@@ -1,10 +1,10 @@
 export * as PluginHost from "./host.js"
 
-import { Plugin } from "@opencode-ai/plugin/effect"
-import type { IntegrationMethodRegistration } from "@opencode-ai/plugin/effect/integration"
-import { EventManifest } from "@opencode-ai/schema/event-manifest"
-import type { Event } from "@opencode-ai/schema/event"
-import { ServerConfig } from "@opencode-ai/schema/mcp"
+import { Plugin } from "@opencode/plugin/effect"
+import type { IntegrationMethodRegistration } from "@opencode/plugin/effect/integration"
+import { EventManifest } from "@opencode/schema/event-manifest"
+import type { Event } from "@opencode/schema/event"
+import { ServerConfig } from "@opencode/schema/mcp"
 import { App } from "../app.js"
 import { Effect, Schema, Stream } from "effect"
 import { Agent } from "../agent.js"
@@ -35,7 +35,7 @@ import { Generate } from "../generate.js"
 import { Permission } from "../permission.js"
 import { PluginHooks } from "./hooks.js"
 import type { Interface } from "../plugin.js"
-import { LayerNode } from "@opencode-ai/util/effect/layer-node"
+import { LayerNode } from "@opencode/util/effect/layer-node"
 
 const mutable = <T>(value: T) => value as DeepMutable<T>
 type RpcEvent = Event.Payload & {
@@ -177,6 +177,7 @@ export const make = Effect.fn("PluginHost.make")(function* (
               options: event.options,
               sdk: event.sdk,
             }
+            // oxlint-disable-next-line no-restricted-globals -- The generic hook callback remains a union after narrowing by hook name.
             return Reflect.apply(callback, undefined, [output]).pipe(
               Effect.tap(() => Effect.sync(() => (event.sdk = output.sdk))),
             )
@@ -190,6 +191,7 @@ export const make = Effect.fn("PluginHost.make")(function* (
             sdk: event.sdk,
             language: event.language,
           }
+          // oxlint-disable-next-line no-restricted-globals -- The generic hook callback remains a union after narrowing by hook name.
           return Reflect.apply(callback, undefined, [output]).pipe(
             Effect.tap(() => Effect.sync(() => (event.language = output.language))),
           )
@@ -266,7 +268,11 @@ export const make = Effect.fn("PluginHost.make")(function* (
     },
     integration: {
       list: () => response(integration.list()),
-      get: (input) => response(integration.get(Integration.ID.make(input.integrationID))),
+      get: Effect.fn(function* (input) {
+        const item = yield* integration.get(Integration.ID.make(input.integrationID))
+        if (!item) return yield* Effect.fail(new Error(`Integration not found: ${input.integrationID}`))
+        return yield* response(Effect.succeed(item))
+      }),
       connect: {
         key: (input) =>
           integration.connection.key({
@@ -404,6 +410,7 @@ export const make = Effect.fn("PluginHost.make")(function* (
                 : Effect.fail(new Error(`Permission request not found: ${input.requestID}`)),
             ),
           ),
+      rules: sessions.setPermissions,
     },
     plugin: {
       list: () => response(plugin.list()),
@@ -509,6 +516,8 @@ export const make = Effect.fn("PluginHost.make")(function* (
           title: input?.title,
           agent: input?.agent,
           model: input?.model,
+          metadata: input?.metadata,
+          permissions: input?.permissions,
           location:
             input?.location ?? Location.Ref.make({ directory: location.directory, workspaceID: location.workspaceID }),
         }),

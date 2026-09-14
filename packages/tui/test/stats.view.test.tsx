@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { createTestRenderer } from "@opentui/core/testing"
-import { Global } from "@opencode-ai/util/global"
+import { Global } from "@opencode/util/global"
 import { Effect, FileSystem } from "effect"
 import { createEventStream, createFetch, json } from "./fixture/tui-client"
 import { tmpdir } from "./fixture/fixture"
@@ -11,7 +11,7 @@ test("stats shows only this year and returns after errors or success", async () 
   setup.renderer.start()
   const requests: URL[] = []
   const calls = createFetch((url) => {
-    if (url.pathname !== "/api/session/stats") return undefined
+    if (url.pathname !== "/api/experimental/session/stats") return undefined
     requests.push(url)
     if (requests.length === 1) return json({ message: "offline" }, { status: 503 })
     return json({

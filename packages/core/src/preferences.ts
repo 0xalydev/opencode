@@ -1,9 +1,9 @@
 export * as Preferences from "./preferences.js"
-export { Target, Value, Entry, Event } from "@opencode-ai/schema/preferences"
+export { Target, Value, Entry, Event } from "@opencode/schema/preferences"
 
-import { Preferences } from "@opencode-ai/schema/preferences"
-import { Skill } from "@opencode-ai/schema/skill"
-import { makeGlobalNode } from "@opencode-ai/util/effect/app-node"
+import { Preferences } from "@opencode/schema/preferences"
+import { Skill } from "@opencode/schema/skill"
+import { makeGlobalNode } from "@opencode/util/effect/app-node"
 import { Context, Effect, Layer, Option, Schema } from "effect"
 import { Bus } from "./bus.js"
 import { KV } from "./kv.js"

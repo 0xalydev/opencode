@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { createStore } from "solid-js/store"
-import { Skill } from "@opencode-ai/schema/skill"
+import { Skill } from "@opencode/schema/skill"
 import type { ComposerPersistedState } from "../types"
 import { createComposerEditorActions } from "./actions"
 
@@ -99,7 +99,7 @@ describe("Composer store", () => {
     expect(prompt.state.prompt).toEqual([{ type: "text", content: "old", start: 0, end: 3 }])
   })
 
-  test("prepends a slash skill to an attachment-only draft without flattening it", () => {
+  test("prepends a skill mention to an attachment-only draft without flattening it", () => {
     const prompt = createPromptStore()
     prompt.setPrompt([{ type: "file", path: "one", content: "@one", start: 0, end: 4 }], 4)
     prompt.addMention(
@@ -107,14 +107,14 @@ describe("Composer store", () => {
         type: "skill",
         id: Skill.ID.make("show-me"),
         name: Skill.Name.make("Show Me"),
-        content: "/show-me",
+        content: "@show-me",
         start: 0,
         end: 0,
       },
       { start: 0, end: 0 },
     )
     expect(prompt.state.prompt).toMatchObject([
-      { type: "skill", id: "show-me", content: "/show-me", start: 0, end: 8 },
+      { type: "skill", id: "show-me", content: "@show-me", start: 0, end: 8 },
       { type: "text", content: " ", start: 8, end: 9 },
       { type: "file", path: "one", content: "@one", start: 9, end: 13 },
     ])

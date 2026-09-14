@@ -11,7 +11,7 @@ import {
   type PermissionRequest,
   type SessionInboxInfo,
   type ToolContent,
-} from "@opencode-ai/client/promise"
+} from "@opencode/client/promise"
 import { createSessionTransport } from "../../src/mini/stream-v2.transport"
 import { runPromptQueue } from "../../src/mini/runtime.queue"
 import { entryBody } from "../../src/mini/entry.body"
@@ -635,6 +635,135 @@ describe("V2 mini transport", () => {
     await transport.close()
   })
 
+  test("hides tool-side assistant narration when tools are disabled", async () => {
+    const events = feed()
+    events.push(connected())
+    const ui = footer()
+    const transport = await createSessionTransport({
+      sdk: sdk({ streams: [events], messages: { ses_1: [] } }),
+      sessionID: "ses_1",
+      thinking: false,
+      tools: false,
+      footer: ui.api,
+    })
+    const tokens = { input: 1, output: 1, reasoning: 0, cache: { read: 0, write: 0 } }
+
+    events.push({
+      id: "evt_work_text",
+      created: 1,
+      type: "session.text.delta",
+      data: {
+        sessionID: "ses_1",
+        assistantMessageID: "msg_work",
+        ordinal: 0,
+        delta: "I'll check.",
+      },
+    })
+    events.push({
+      id: "evt_tool_start",
+      created: 2,
+      type: "session.tool.input.started",
+      durable: durable("ses_1", 1),
+      data: { sessionID: "ses_1", assistantMessageID: "msg_work", id: "call_read", name: "read" },
+    })
+    events.push({
+      id: "evt_tool_called",
+      created: 3,
+      type: "session.tool.called",
+      durable: durable("ses_1", 2),
+      data: { sessionID: "ses_1", assistantMessageID: "msg_work", id: "call_read", input: {}, executed: true },
+    })
+    events.push({
+      id: "evt_work_step",
+      created: 4,
+      type: "session.step.ended",
+      durable: durable("ses_1", 3),
+      data: {
+        sessionID: "ses_1",
+        assistantMessageID: "msg_work",
+        finish: "tool-calls",
+        cost: 0,
+        tokens,
+      },
+    })
+    events.push({
+      id: "evt_final_text",
+      created: 5,
+      type: "session.text.delta",
+      data: {
+        sessionID: "ses_1",
+        assistantMessageID: "msg_final",
+        ordinal: 0,
+        delta: "Done.",
+      },
+    })
+    events.push({
+      id: "evt_final_step",
+      created: 6,
+      type: "session.step.ended",
+      durable: durable("ses_1", 4),
+      data: {
+        sessionID: "ses_1",
+        assistantMessageID: "msg_final",
+        finish: "stop",
+        cost: 0,
+        tokens,
+      },
+    })
+
+    while (!ui.commits.some((commit) => commit.text === "Done.")) await Bun.sleep(0)
+    expect(ui.commits.filter((commit) => commit.kind === "assistant" || commit.kind === "tool").map((commit) => commit.text)).toEqual([
+      "Done.",
+    ])
+    await transport.close()
+  })
+
+  test("hides tool-side assistant narration from hydrated history when tools are disabled", async () => {
+    const events = feed()
+    events.push(connected())
+    const ui = footer()
+    const transport = await createSessionTransport({
+      sdk: sdk({
+        streams: [events],
+        messages: {
+          ses_1: [
+            {
+              id: "msg_final",
+              type: "assistant",
+              agent: "build",
+              model: { providerID: "test", id: "model" },
+              content: [{ type: "text", text: "Done." }],
+              time: { created: 4, completed: 5 },
+            },
+            {
+              id: "msg_work",
+              type: "assistant",
+              agent: "build",
+              model: { providerID: "test", id: "model" },
+              content: [
+                { type: "text", text: "I'll check." },
+                canonicalToolPart("read", { status: "completed", input: {}, content: [{ type: "text", text: "file" }] }),
+              ],
+              time: { created: 2, completed: 3 },
+            },
+            { id: "msg_user", type: "user", text: "what happened", files: [], agents: [], time: { created: 1 } },
+          ],
+        },
+      }),
+      sessionID: "ses_1",
+      thinking: false,
+      tools: false,
+      replay: true,
+      footer: ui.api,
+    })
+
+    while (!ui.commits.some((commit) => commit.text === "Done.")) await Bun.sleep(0)
+    expect(
+      ui.commits.filter((commit) => commit.kind === "user" || commit.kind === "assistant" || commit.kind === "tool").map((commit) => commit.text),
+    ).toEqual(["what happened", "Done."])
+    await transport.close()
+  })
+
   test("recursively hydrates blockers for direct and transitive descendants", async () => {
     const events = feed()
     events.push(connected())
@@ -771,18 +900,18 @@ describe("V2 mini transport", () => {
     await transport.close()
   })
 
-  test("reduces nested form owners idempotently and filters global events by complete location", async () => {
+  test("reduces nested form owners idempotently and filters global events by directory", async () => {
     const events = feed()
     events.push(connected())
     const client = sdk({
       streams: [events],
       sessions: [{ id: "ses_child", parentID: "ses_1", title: "Child", time: { updated: 1 } }],
-      globalLocation: { directory: "/work", workspaceID: "wrk_1" },
+      globalLocation: { directory: "/work" },
     })
     const ui = footer()
     const transport = await createSessionTransport({
       sdk: client,
-      location: { directory: "/work", workspaceID: "wrk_1" },
+      location: { directory: "/work" },
       sessionID: "ses_1",
       thinking: false,
       footer: ui.api,
@@ -810,7 +939,7 @@ describe("V2 mini transport", () => {
       id: "evt_global_wrong",
       created: 4,
       type: "form.created",
-      location: { directory: "/work", workspaceID: "wrk_other" },
+      location: { directory: "/other" },
       data: { form: eventForm(global) },
     })
     await Bun.sleep(0)
@@ -823,7 +952,7 @@ describe("V2 mini transport", () => {
       id: "evt_global_right",
       created: 5,
       type: "form.created",
-      location: { directory: "/work", workspaceID: "wrk_1" },
+      location: { directory: "/work" },
       data: { form: eventForm(global) },
     })
     while (
@@ -836,7 +965,7 @@ describe("V2 mini transport", () => {
       type: "stream.view",
       view: {
         type: "form",
-        request: { id: "frm_global_live", location: { directory: "/work", workspaceID: "wrk_1" } },
+        request: { id: "frm_global_live", location: { directory: "/work" } },
       },
     })
     const beforeCancel = ui.events.filter((event) => event.type === "stream.view").length
@@ -844,7 +973,7 @@ describe("V2 mini transport", () => {
       id: "evt_global_done",
       created: 6,
       type: "form.cancelled",
-      location: { directory: "/work", workspaceID: "wrk_1" },
+      location: { directory: "/work" },
       data: { id: global.id, sessionID: "global" },
     })
     while (ui.events.filter((event) => event.type === "stream.view").length === beforeCancel) await Bun.sleep(0)
@@ -2704,7 +2833,7 @@ describe("V2 mini transport", () => {
     const ui = footer()
     const transport = await createSessionTransport({
       sdk: client,
-      location: { directory: "/project", workspaceID: "wrk_1" },
+      location: { directory: "/project" },
       sessionID: "ses_1",
       thinking: false,
       footer: ui.api,
@@ -2759,7 +2888,7 @@ describe("V2 mini transport", () => {
       { signal: undefined },
     )
     expect(defaultModel).toHaveBeenCalledWith(
-      { location: { directory: "/project", workspace: "wrk_1" } },
+      { location: { directory: "/project" } },
       { signal: undefined },
     )
     await transport.close()
@@ -3284,70 +3413,6 @@ describe("V2 mini transport", () => {
     await transport.close()
   })
 
-  test("routes skill prompts through v2.session.skill and settles without promotion", async () => {
-    const events = feed()
-    events.push(connected())
-    const client = sdk({ streams: [events] })
-    const ui = footer()
-    const transport = await createSessionTransport({
-      sdk: client,
-      sessionID: "ses_1",
-      thinking: false,
-      footer: ui.api,
-    })
-    let request: Parameters<OpenCodeClient["session"]["skill"]>[0] | undefined
-    const command = spyOn(client.session, "command")
-    const prompt = spyOn(client.session, "prompt")
-    spyOn(client.session, "skill").mockImplementation((input) => {
-      request = input
-      queueMicrotask(() => {
-        events.push({
-          id: "evt_skill",
-          created: 0,
-          type: "session.skill.activated",
-          durable: durable("ses_1"),
-          data: {
-            sessionID: "ses_1",
-            id: input.skill ?? "tigerstyle",
-            name: input.skill ?? "tigerstyle",
-            text: "skill instructions",
-          },
-        })
-        events.push({
-          id: "evt_settled",
-          created: 0,
-          type: "session.execution.succeeded",
-          durable: durable("ses_1"),
-          data: { sessionID: "ses_1" },
-        })
-      })
-      return ok(undefined) as never
-    })
-
-    await transport.runPromptTurn({
-      agent: "review",
-      model: undefined,
-      variant: undefined,
-      prompt: {
-        messageID: "msg_skill",
-        text: "/tigerstyle",
-        parts: [],
-        command: { name: "tigerstyle", arguments: "", source: "skill" },
-      },
-      files: [],
-      includeFiles: true,
-    })
-
-    expect(client.session.switchAgent).toHaveBeenCalledWith({ sessionID: "ses_1", agent: "review" }, expect.anything())
-    expect(request).toMatchObject({ sessionID: "ses_1", id: "msg_skill", skill: "tigerstyle" })
-    expect(command).not.toHaveBeenCalled()
-    expect(prompt).not.toHaveBeenCalled()
-    expect(ui.commits).toContainEqual(
-      expect.objectContaining({ kind: "system", text: '→ Skill "tigerstyle"', messageID: "msg_skill" }),
-    )
-    await transport.close()
-  })
-
   test("sends inline skill attachments with a normal prompt", async () => {
     const events = feed()
     events.push(connected())
@@ -3427,7 +3492,6 @@ describe("V2 mini transport", () => {
       sdk: client,
       location: {
         directory: "/project",
-        workspaceID: "work-1",
       },
       sessionID: "ses_1",
       thinking: false,
@@ -3448,7 +3512,7 @@ describe("V2 mini transport", () => {
         id: `evt_${type}`,
         created: 0,
         type,
-        location: { directory: "/project", workspaceID: "work-1" },
+        location: { directory: "/project" },
         data: {},
       })
     events.push({
@@ -3469,13 +3533,6 @@ describe("V2 mini transport", () => {
       created: 0,
       type: "catalog.updated",
       location: { directory: "/other" },
-      data: {},
-    })
-    events.push({
-      id: "evt_foreign_workspace_catalog",
-      created: 0,
-      type: "catalog.updated",
-      location: { directory: "/project", workspaceID: "work-2" },
       data: {},
     })
     while (refreshes < 9) await Bun.sleep(0)

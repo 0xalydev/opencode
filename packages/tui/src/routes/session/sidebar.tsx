@@ -3,7 +3,7 @@ import { createMemo, Show } from "solid-js"
 import { useTheme } from "../../context/theme"
 import { useConfig } from "../../config"
 import { Slot } from "../../plugin/render"
-import { withTimestampedFallback } from "@opencode-ai/util/session-title-fallback"
+import { withTimestampedFallback } from "@opencode/util/session-title-fallback"
 import { TextAttributes } from "@opentui/core"
 import "../../component/title-shimmer"
 
@@ -46,9 +46,6 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
           >
             {withTimestampedFallback(session())}
           </title_shimmer>
-          <Show when={session().location.workspaceID}>
-            <text fg={theme.text.subdued}>{session().location.workspaceID}</text>
-          </Show>
         </box>
         <scrollbox
           flexGrow={1}

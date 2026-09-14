@@ -143,6 +143,52 @@ describe("HttpApiCodegen.generate", () => {
     expect(source).not.toContain("@example/api")
   })
 
+  test("preserves named Effect references across optional schema occurrences", () => {
+    const State = Schema.Record(Schema.String, Schema.Unknown).annotate({ identifier: "Message.State" })
+    const output = emitEffectShape(
+      compileContract(
+        api(
+          HttpApiEndpoint.get("get", "/session", {
+            success: Schema.Struct({
+              encoded: Schema.toEncoded(Schema.Struct({ state: Schema.optionalKey(State) })),
+              optional: Schema.optional(State),
+            }),
+          }),
+        ),
+      ),
+      {
+        typeReferences: [
+          { schema: State, name: "Message.State", import: 'import type { Message } from "@example/schema/message"' },
+        ],
+      },
+    )
+    const source = output.files[0]?.content
+    expect(source).toContain('readonly "state"?: Message.State')
+    expect(source).toContain('readonly "optional"?: Message.State | undefined')
+  })
+
+  test("does not reuse named Effect references for different suffixed shapes", () => {
+    const State = Schema.Record(Schema.String, Schema.Unknown).annotate({ identifier: "Message.State" })
+    const Different = Schema.Record(Schema.String, Schema.Number).annotate({ identifier: "Message.State" })
+    const output = emitEffectShape(
+      compileContract(
+        api(
+          HttpApiEndpoint.get("get", "/session", {
+            success: Schema.Struct({ original: State, different: Different }),
+          }),
+        ),
+      ),
+      {
+        typeReferences: [
+          { schema: State, name: "Message.State", import: 'import type { Message } from "@example/schema/message"' },
+        ],
+      },
+    )
+    const source = output.files[0]?.content
+    expect(source).toContain('readonly "original": Message.State')
+    expect(source).toContain('readonly "different": ({ readonly [x: string]: number })')
+  })
+
   test("allows composed Effect outputs to use an authoritative named type", () => {
     const output = emitEffectShape(
       compileContract(api(HttpApiEndpoint.get("events", "/event", { success: Schema.Unknown }))),
@@ -1445,6 +1491,7 @@ describe("HttpApiCodegen.generate", () => {
     const link = JsonNumber.ast.encoding?.[0]
     if (link === undefined) throw new Error("Expected JSON number encoding")
     // This helper is present at runtime but omitted from the public declaration surface.
+    // oxlint-disable-next-line no-restricted-globals -- The test verifies an Effect runtime helper without a public type.
     const replaceEncoding: unknown = Reflect.get(SchemaAST, "replaceEncoding")
     if (typeof replaceEncoding !== "function") throw new Error("Expected SchemaAST.replaceEncoding")
     const ast: unknown = replaceEncoding(JsonNumber.ast, [

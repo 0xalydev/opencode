@@ -4,141 +4,6 @@ import { makeACPFixture, makeSession, secondModel, testModel } from "./service-f
 import { flattenSelectOptions, requireSelectOption } from "./subprocess"
 
 describe("acp service directory behavior", () => {
-  test("filters disabled skills from the full skill catalog using global preferences", async () => {
-    await using fixture = makeACPFixture({
-      fetch(request) {
-        if (request.path === "/api/preferences")
-          return Response.json([{ target: { kind: "skill.activation", id: "verify" }, value: "disabled" }])
-        if (request.path === "/api/session" && request.method === "POST")
-          return Response.json({ data: makeSession("ses_preferences") })
-        return undefined
-      },
-    })
-    await fixture.service.newSession({ cwd: "/workspace", mcpServers: [] })
-    expect(fixture.updates.at(-1)).toMatchObject({
-      update: { sessionUpdate: "available_commands_update", availableCommands: [{ name: "review" }] },
-    })
-  })
-
-  test.each([true, false])(
-    "refreshes activation when attaching to a cached catalog (disabled: %s)",
-    async (initial) => {
-      let disabled = initial
-      let created = 0
-      await using fixture = makeACPFixture({
-        fetch(request) {
-          if (request.path === "/api/preferences")
-            return Response.json(
-              disabled ? [{ target: { kind: "skill.activation", id: "verify" }, value: "disabled" }] : [],
-            )
-          if (request.path === "/api/session" && request.method === "POST")
-            return Response.json({ data: makeSession(`ses_${++created}`) })
-          return undefined
-        },
-      })
-      await fixture.service.newSession({ cwd: "/workspace", mcpServers: [] })
-      disabled = !initial
-      await fixture.service.newSession({ cwd: "/workspace", mcpServers: [] })
-      expect(fixture.updates.at(-1)).toMatchObject({
-        sessionId: "ses_2",
-        update: {
-          sessionUpdate: "available_commands_update",
-          availableCommands: disabled ? [{ name: "review" }] : [{ name: "review" }, { name: "verify" }],
-        },
-      })
-      expect(fixture.requests.filter((request) => request.path === "/api/skill")).toHaveLength(1)
-    },
-  )
-
-  test("updates attached command menus when global skill preferences change", async () => {
-    let disabled = false
-    let changed = false
-    const hidden = Promise.withResolvers<void>()
-    const restored = Promise.withResolvers<void>()
-    await using fixture = makeACPFixture({
-      fetch(request) {
-        if (request.path === "/api/preferences")
-          return Response.json(
-            disabled ? [{ target: { kind: "skill.activation", id: "verify" }, value: "disabled" }] : [],
-          )
-        if (request.path === "/api/session" && request.method === "POST")
-          return Response.json({ data: makeSession("ses_live_preferences") })
-        return undefined
-      },
-      onUpdate({ update }) {
-        if (!changed || update.sessionUpdate !== "available_commands_update") return
-        if (update.availableCommands.some((command) => command.name === "verify")) return restored.resolve()
-        hidden.resolve()
-      },
-    })
-    await fixture.service.newSession({ cwd: "/workspace", mcpServers: [] })
-    changed = true
-    disabled = true
-    const event = {
-      id: "evt_preferences",
-      type: "preferences.updated",
-      data: { target: { kind: "skill.activation", id: "verify" } },
-    }
-    fixture.send(event)
-    await hidden.promise
-    expect(fixture.updates.at(-1)).toMatchObject({
-      sessionId: "ses_live_preferences",
-      update: { sessionUpdate: "available_commands_update", availableCommands: [{ name: "review" }] },
-    })
-    disabled = false
-    fixture.send({ ...event, id: "evt_preferences_reset" })
-    await restored.promise
-    expect(fixture.updates.at(-1)).toMatchObject({
-      sessionId: "ses_live_preferences",
-      update: {
-        sessionUpdate: "available_commands_update",
-        availableCommands: [{ name: "review" }, { name: "verify" }],
-      },
-    })
-    expect(fixture.requests.filter((request) => request.path === "/api/skill")).toHaveLength(1)
-  })
-
-  test("does not cache an available model before plugin activation settles", async () => {
-    const requested = Promise.withResolvers<void>()
-    const release = Promise.withResolvers<void>()
-    let ready = false
-    await using fixture = makeACPFixture({
-      fetch(request) {
-        requested.resolve()
-        if (request.path === "/api/plugin/await-activation") {
-          return release.promise.then(() => {
-            ready = true
-            return new Response(null, { status: 204 })
-          })
-        }
-        if (!ready && request.path === "/api/model") {
-          return Response.json({ data: [{ ...testModel, providerID: "ambient" }] })
-        }
-        if (!ready && request.path === "/api/model/default") {
-          return Response.json({ data: { ...testModel, providerID: "ambient" } })
-        }
-        if (request.path === "/api/session" && request.method === "POST") {
-          return Response.json({ data: { ...makeSession("ses_ready"), model: undefined } })
-        }
-        return undefined
-      },
-    })
-    const pending = fixture.service.newSession({ cwd: "/workspace", mcpServers: [] })
-    try {
-      await requested.promise
-      expect(fixture.requests.map((request) => request.path)).toEqual(["/api/plugin/await-activation"])
-      expect(fixture.requests[0]?.query["location[directory]"]).toBe("/workspace")
-      release.resolve()
-      expect(currentValue(await pending, "model")).toBe("test/test-model")
-      expect(
-        fixture.requests.find((request) => request.path === "/api/session" && request.method === "POST")?.body,
-      ).toMatchObject({ model: { providerID: "test", id: "test-model" } })
-    } finally {
-      release.resolve()
-      await pending.catch(() => {})
-    }
-  })
-
   test("creates sessions from a catalog shared by concurrent callers in the same cwd", async () => {
     let created = 0
     await using fixture = makeACPFixture({
@@ -163,20 +28,16 @@ describe("acp service directory behavior", () => {
     expect(currentValue(first[0], "mode")).toBe("build")
     expect(
       [
-        "/api/plugin/await-activation",
         "/api/model",
         "/api/model/default",
         "/api/agent",
         "/api/command",
-        "/api/skill",
       ].map((path) =>
         fixture.requests
           .filter((request) => request.path === path)
           .map((request) => request.query["location[directory]"]),
       ),
     ).toEqual([
-      ["/workspace", "/other"],
-      ["/workspace", "/other"],
       ["/workspace", "/other"],
       ["/workspace", "/other"],
       ["/workspace", "/other"],
@@ -316,7 +177,7 @@ describe("acp service directory behavior", () => {
     await fixture.service.setSessionMode({ sessionId: session.sessionId, modeId: "build" })
 
     expect(currentValue(selectedModel, "model")).toBe("test/second-model")
-    expect(currentValue(selectedModel, "effort")).toBe("low")
+    expect(currentValue(selectedModel, "effort")).toBe("default")
     expect(currentValue(selectedEffort, "effort")).toBe("medium")
     expect(currentValue(selectedMode, "mode")).toBe("plan")
     expect(
@@ -375,6 +236,7 @@ describe("acp service directory behavior", () => {
       headers: [{ name: "Authorization", value: "Bearer x" }],
     }
     let created = 0
+    const mcp = "/api/experimental/mcp/"
     await using fixture = makeACPFixture({
       fetch(request) {
         if (request.method === "POST" && request.path === "/api/session") {
@@ -384,7 +246,7 @@ describe("acp service directory behavior", () => {
         if (request.method === "GET" && request.path === "/api/session/ses_1") {
           return Response.json({ data: makeSession("ses_1") })
         }
-        if (request.method === "PUT" && request.path.startsWith("/api/mcp/")) {
+        if (request.method === "PUT" && request.path.startsWith(mcp)) {
           return new Response(null, { status: 204 })
         }
         return undefined
@@ -396,9 +258,9 @@ describe("acp service directory behavior", () => {
     await fixture.service.resumeSession({ cwd: "/workspace", sessionId: "ses_1", mcpServers: [changed] })
     await fixture.service.newSession({ cwd: "/workspace", mcpServers: [local] })
 
-    const adds = fixture.requests.filter((request) => request.method === "PUT" && request.path.startsWith("/api/mcp/"))
+    const adds = fixture.requests.filter((request) => request.method === "PUT" && request.path.startsWith(mcp))
     expect(adds).toHaveLength(4)
-    expect(adds.filter((request) => request.path === "/api/mcp/tools").map((request) => request.body)).toEqual([
+    expect(adds.filter((request) => request.path === `${mcp}tools`).map((request) => request.body)).toEqual([
       {
         config: {
           type: "local",
@@ -421,7 +283,7 @@ describe("acp service directory behavior", () => {
         },
       },
     ])
-    expect(adds.find((request) => request.path === "/api/mcp/docs")?.body).toEqual({
+    expect(adds.find((request) => request.path === `${mcp}docs`)?.body).toEqual({
       config: {
         type: "remote",
         url: "https://example.com/mcp",

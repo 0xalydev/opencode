@@ -4,7 +4,7 @@ import { HttpServer, HttpServerError, HttpServerResponse } from "effect/unstable
 import { it } from "../../core/test/lib/effect"
 import { ServerProcess } from "../src/process"
 
-it.live("allows browser preflight requests without credentials", () =>
+it.live("authenticates API and frontend requests while allowing browser preflight", () =>
   Effect.gen(function* () {
     const fallback = "fallback".repeat(256)
     const server = yield* ServerProcess.start<never, never>(
@@ -26,7 +26,7 @@ it.live("allows browser preflight requests without credentials", () =>
         ),
     )
     const response = yield* Effect.promise(() =>
-      fetch(new URL("/api/health", HttpServer.formatAddress(server.address)), {
+      fetch(new URL("/api/status", HttpServer.formatAddress(server.address)), {
         method: "OPTIONS",
         headers: {
           origin: "http://localhost:3000",
@@ -40,8 +40,8 @@ it.live("allows browser preflight requests without credentials", () =>
     expect(response.headers.get("access-control-allow-origin")).toBe("http://localhost:3000")
     expect(response.headers.get("access-control-allow-headers")).toBe("authorization")
 
-    const health = yield* Effect.promise(() =>
-      fetch(new URL("/api/health", HttpServer.formatAddress(server.address)), {
+    const status = yield* Effect.promise(() =>
+      fetch(new URL("/api/status", HttpServer.formatAddress(server.address)), {
         headers: {
           authorization: `Basic ${btoa("opencode:secret")}`,
           origin: "http://localhost:3000",
@@ -49,9 +49,9 @@ it.live("allows browser preflight requests without credentials", () =>
       }),
     )
 
-    expect(health.status).toBe(200)
-    expect(health.headers.get("access-control-allow-origin")).toBe("http://localhost:3000")
-    expect(yield* Effect.promise(() => health.json())).toMatchObject({ version: "test-version" })
+    expect(status.status).toBe(200)
+    expect(status.headers.get("access-control-allow-origin")).toBe("http://localhost:3000")
+    expect(yield* Effect.promise(() => status.json())).toMatchObject({ version: "test-version" })
 
     yield* Effect.forEach(
       ["http://192.168.1.10:3001", "https://example.com", "https://untrusted.example.com"],
@@ -59,7 +59,7 @@ it.live("allows browser preflight requests without credentials", () =>
         Effect.gen(function* () {
           const allowed = origin === "https://untrusted.example.com" ? null : origin
           const preflight = yield* Effect.promise(() =>
-            fetch(new URL("/api/health", HttpServer.formatAddress(server.address)), {
+            fetch(new URL("/api/status", HttpServer.formatAddress(server.address)), {
               method: "OPTIONS",
               headers: {
                 origin,
@@ -71,17 +71,17 @@ it.live("allows browser preflight requests without credentials", () =>
           expect(preflight.status).toBe(204)
           expect(preflight.headers.get("access-control-allow-origin")).toBe(allowed)
 
-          const health = yield* Effect.promise(() =>
-            fetch(new URL("/api/health", HttpServer.formatAddress(server.address)), {
+          const status = yield* Effect.promise(() =>
+            fetch(new URL("/api/status", HttpServer.formatAddress(server.address)), {
               headers: { origin, authorization: `Basic ${btoa("opencode:secret")}` },
             }),
           )
-          expect(health.status).toBe(200)
-          expect(health.headers.get("access-control-allow-origin")).toBe(allowed)
-          yield* Effect.promise(() => health.arrayBuffer())
+          expect(status.status).toBe(200)
+          expect(status.headers.get("access-control-allow-origin")).toBe(allowed)
+          yield* Effect.promise(() => status.arrayBuffer())
 
           const denied = yield* Effect.promise(() =>
-            fetch(new URL("/api/health", HttpServer.formatAddress(server.address)), { headers: { origin } }),
+            fetch(new URL("/api/status", HttpServer.formatAddress(server.address)), { headers: { origin } }),
           )
           expect(denied.status).toBe(401)
           expect(denied.headers.get("access-control-allow-origin")).toBe(allowed)
@@ -128,6 +128,36 @@ it.live("allows browser preflight requests without credentials", () =>
         const response = yield* Effect.promise(() => fetch(new URL(pathname, HttpServer.formatAddress(server.address))))
         expect(response.status).toBe(401)
         expect(yield* Effect.promise(() => response.text())).toBe("")
+      }),
+    )
+
+    yield* Effect.forEach(["/", "/workspace/example", "/_assets/app.js", "/icons/icon.svg", "/sw.js"], (pathname) =>
+      Effect.gen(function* () {
+        yield* Effect.forEach(["GET", "HEAD"], (method) =>
+          Effect.gen(function* () {
+            yield* Effect.forEach([undefined, `Basic ${btoa("opencode:wrong")}`], (authorization) =>
+              Effect.gen(function* () {
+                const response = yield* Effect.promise(() =>
+                  fetch(new URL(pathname, HttpServer.formatAddress(server.address)), {
+                    method,
+                    headers: authorization ? { authorization } : undefined,
+                  }),
+                )
+                expect(response.status).toBe(401)
+                expect(response.headers.get("www-authenticate")).toBe('Basic realm="Secure Area"')
+                expect(yield* Effect.promise(() => response.text())).toBe("")
+              }),
+            )
+            const response = yield* Effect.promise(() =>
+              fetch(new URL(pathname, HttpServer.formatAddress(server.address)), {
+                method,
+                headers: { authorization: `Basic ${btoa("opencode:secret")}` },
+              }),
+            )
+            expect(response.status).toBe(200)
+            expect(yield* Effect.promise(() => response.text())).toBe(method === "HEAD" ? "" : fallback)
+          }),
+        )
       }),
     )
   }),

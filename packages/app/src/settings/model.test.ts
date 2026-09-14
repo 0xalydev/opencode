@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { Schema } from "effect"
-import { timelinePresets } from "@opencode-ai/session-ui/timeline/detail"
+import { timelinePresets } from "@opencode/session-ui/timeline/detail"
 import { Persistence } from "@/runtime/persistence/schema"
 import {
   settingsSchema,
@@ -34,6 +34,17 @@ describe("settings timeline detail migration", () => {
 })
 
 describe("settings schema", () => {
+  test("restores summary expansion and discards the retired status preference", () => {
+    const settings = decode({
+      general: { showStatus: true, showSearch: true },
+      sessionSummary: { projectExpanded: false, serverExpanded: true },
+    })
+    expect(settings.general.showSearch).toBe(true)
+    expect(settings.general).not.toHaveProperty("showStatus")
+    expect(settings.sessionSummary).toEqual({ projectExpanded: false, serverExpanded: true })
+    expect(decode(encode(settings)).sessionSummary).toEqual(settings.sessionSummary)
+  })
+
   test("uses the supplied initial values independently of the current schema", () => {
     const initial = {
       ...defaultSettings,
@@ -58,7 +69,6 @@ describe("settings schema", () => {
         showFileTree: false,
         showNavigation: false,
         showSearch: false,
-        showStatus: false,
         showProjectIcon: false,
         showTerminal: false,
         timelineDetail: timelinePresets[2].value,
@@ -67,7 +77,9 @@ describe("settings schema", () => {
         mobileDiffWrap: true,
         terminalPlacement: "side",
         followUpBehavior: "steer",
+        experimentalBrowser: false,
       },
+      sessionSummary: { projectExpanded: true, serverExpanded: true },
       appearance: {
         fontSize: 14,
         mono: "",
@@ -128,6 +140,12 @@ describe("settings schema", () => {
     expect(settings.notifications).toEqual({ agent: false, permissions: true, errors: true })
     expect(settings.sounds).toMatchObject({ agent: "custom", agentEnabled: false, permissions: "staplebops-02" })
     expect(decode(encode(settings))).toEqual(settings)
+  })
+
+  test("browser attachment is opt-in and preserves an explicit choice", () => {
+    expect(decode({}).general.experimentalBrowser).toBe(false)
+    expect(decode({ general: { experimentalBrowser: true } }).general.experimentalBrowser).toBe(true)
+    expect(decode({ general: { experimentalBrowser: false } }).general.experimentalBrowser).toBe(false)
   })
 
   test.each([undefined, null, false, 7, "invalid", []].map((invalid) => [invalid]))(

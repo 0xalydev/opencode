@@ -53,8 +53,10 @@ for (const direction of ["ltr", "rtl"] as const) {
       await expect(trigger).toBeEnabled()
       await expect(trigger.locator("use")).toHaveAttribute(
         "href",
-        `#opencode-v2-icon-${workspace ? "workspace-isolated" : "monitor"}`,
+        `#opencode-v2-icon-${workspace ? "outline-worktree" : "monitor"}`,
       )
+      // Initial layout scrolls this sticky header's ancestor and dismisses its tooltip.
+      await expect(page.locator("[data-timeline-virtual-content]")).toHaveCSS("visibility", "visible")
       const background = await trigger.evaluate((element) => getComputedStyle(element).backgroundColor)
       await trigger.hover()
       await expect(trigger).not.toHaveCSS("background-color", background)
@@ -198,14 +200,15 @@ for (const direction of ["ltr", "rtl"] as const) {
       await expect(settings).toBeFocused()
       await expect(page.getByRole("tooltip")).toBeHidden()
       await page.keyboard.press("Enter")
-      const dialog = page.getByRole("dialog")
-      await expect(dialog.getByRole("heading", { name: copy["dialog.project.edit.title"], exact: true })).toBeVisible()
-      await expect(dialog.getByRole("textbox", { name: copy["dialog.project.edit.name"], exact: true })).toHaveValue(
-        project.name,
-      )
+      const settingsScreen = page.getByTestId("settings-screen")
+      await expect(settingsScreen.getByRole("heading", { name: project.name, exact: true })).toBeVisible()
+      await expect(
+        settingsScreen.getByRole("textbox", { name: en["project.settings.name.title"], exact: true }),
+      ).toHaveValue(project.name)
       await expect(menu).toBeHidden()
-      await dialog.getByRole("button", { name: copy["common.cancel"], exact: true }).click()
-      await expect(dialog).toBeHidden()
+      await settingsScreen.getByRole("button", { name: en["settings.backToProjects"], exact: true }).click()
+      await settingsScreen.getByRole("button", { name: en["settings.backToApp"], exact: true }).click()
+      await expect(settingsScreen).toBeHidden()
       await expect(header.getByRole("heading")).toHaveText(fixture.expected.targetTitle)
 
       await page.setViewportSize({ width: 1440, height: 900 })
@@ -267,17 +270,18 @@ for (const state of ["closed", "unopened"] as const) {
         messages.resolve()
         await expect(header.getByRole("button", { name: "More options", exact: true })).toBeVisible()
       }
-      await expect(trigger.locator("use")).toHaveAttribute("href", "#opencode-v2-icon-workspace-isolated")
+      await expect(trigger.locator("use")).toHaveAttribute("href", "#opencode-v2-icon-outline-worktree")
       await trigger.click()
       await expect(menu.getByRole("menuitem", { name: fixture.project.name, exact: true })).toBeEnabled()
       await expect(menu.getByRole("menuitem", { name: directory, exact: true })).toBeDisabled()
       await menu.getByRole("menuitem", { name: "Edit project", exact: true }).click()
-      const dialog = page.getByRole("dialog")
-      await expect(dialog.getByRole("textbox", { name: en["dialog.project.edit.name"], exact: true })).toHaveValue(
-        fixture.project.name,
-      )
-      await dialog.getByRole("button", { name: en["common.cancel"], exact: true }).click()
-      await expect(dialog).toBeHidden()
+      const settingsScreen = page.getByTestId("settings-screen")
+      await expect(
+        settingsScreen.getByRole("textbox", { name: en["project.settings.name.title"], exact: true }),
+      ).toHaveValue(fixture.project.name)
+      await settingsScreen.getByRole("button", { name: en["settings.backToProjects"], exact: true }).click()
+      await settingsScreen.getByRole("button", { name: en["settings.backToApp"], exact: true }).click()
+      await expect(settingsScreen).toBeHidden()
     }
     await trigger.click()
     await menu.getByRole("menuitem", { name: fixture.project.name, exact: true }).click()

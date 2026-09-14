@@ -1,7 +1,7 @@
 import { expect } from "bun:test"
 import { mkdir } from "node:fs/promises"
 import path from "node:path"
-import { OpenCode } from "@opencode-ai/client"
+import { OpenCode } from "@opencode/client"
 import { Effect } from "effect"
 import { tmpdirScoped } from "../../core/test/fixture/tmpdir"
 import { it } from "../../core/test/lib/effect"
@@ -17,8 +17,9 @@ it.live(
       const second = { directory: path.join(tmp.path, "second") }
       yield* Effect.promise(async () => {
         await Promise.all([config, first.directory, second.directory].map((directory) => mkdir(directory)))
+        await mkdir(path.join(config, "skills", "toggle-test"), { recursive: true })
         await Bun.write(
-          path.join(config, "skills", "toggle-test.md"),
+          path.join(config, "skills", "toggle-test", "SKILL.md"),
           "---\nname: Toggle test\ndescription: Fixture guidance\n---\nUse this guidance.",
         )
       })
@@ -45,7 +46,7 @@ it.live(
             _tag: "InvalidRequestError",
             field: "value",
           })
-          await Promise.all([first, second].map((location) => client.plugin.awaitActivation({ location })))
+          await Promise.all([first, second].map((location) => client.skill.list({ location })))
           const session = await client.session.create({ location: first })
           await client.session.prompt({
             sessionID: session.id,
@@ -90,11 +91,8 @@ it.live(
           ),
         })
         yield* Effect.promise(async () => {
-          await client.plugin.awaitActivation({ location: second })
           expect(await client.preferences.list()).toEqual([{ target, value: "disabled" }])
-          expect((await client.skill.list({ location: second })).data.some((skill) => skill.id === target.id)).toBe(
-            true,
-          )
+          expect(await waitForSkill(client, second, target.id)).toBe(true)
           await client.preferences.set({ ...target, value: "enabled" })
           expect(await client.preferences.list()).toEqual([{ target, value: "enabled" }])
           const session = await client.session.create({ location: second })
@@ -108,11 +106,21 @@ it.live(
           await client.preferences.reset(target)
           expect(await client.preferences.get(target)).toBeNull()
           expect(await client.preferences.list()).toEqual([])
-          expect((await client.skill.list({ location: second })).data.some((skill) => skill.id === target.id)).toBe(
-            true,
-          )
+          expect(await waitForSkill(client, second, target.id)).toBe(true)
         })
       }).pipe(Effect.scoped)
     }),
   20_000,
 )
+
+async function waitForSkill(
+  client: ReturnType<typeof OpenCode.make>,
+  location: { directory: string },
+  id: string,
+) {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    if ((await client.skill.list({ location })).data.some((skill) => skill.id === id)) return true
+    await Bun.sleep(25)
+  }
+  return false
+}

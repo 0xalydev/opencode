@@ -20,8 +20,8 @@ import type { PromptInfo, PromptPartRef } from "../../prompt/history"
 import { useFrecency } from "../../prompt/frecency"
 import { Keymap, type KeymapCommand } from "../../context/keymap"
 import { displayCharAt, mentionTriggerIndex, slashTriggerIndex } from "../../prompt/display"
-import type { FileSystemEntry } from "@opencode-ai/client"
-import { Skill } from "@opencode-ai/schema/skill"
+import type { FileSystemEntry } from "@opencode/client"
+import { Skill } from "@opencode/schema/skill"
 import { stringWidth } from "../../util/string-width"
 import { parseFileLineRange, stripFileLineRange } from "../../prompt/parse"
 import { moveSelection, reconcileSelectionWindow, revealSelectionOffset } from "../../ui/select-controller"
@@ -330,7 +330,6 @@ export function Autocomplete(props: {
       const { lineRange, base } = parseFileLineRange(input.query ?? "")
       const requestLocation = {
         directory: input.location?.directory,
-        workspace: input.location?.workspaceID ?? data.location.default().workspaceID,
       }
       const width = props.anchor().width - 4
       if (input.visible === "directory") {
@@ -454,7 +453,7 @@ export function Autocomplete(props: {
   })
 
   const skillOptions = createMemo(() =>
-    (data.location.skill.available(location.current) ?? []).map(
+    (data.location.skill.list(location.current) ?? []).map(
       (skill): AutocompleteOption => ({
         display: "@" + skill.id,
         description: skill.description,
@@ -503,12 +502,11 @@ export function Autocomplete(props: {
     const results: AutocompleteOption[] = keymapCommands().flatMap((command) => {
       const slash = command.slash
       if (!slash) return []
-      return {
-        display: `/${slash.name}`,
+      return [slash.name, ...(slash.aliases ?? [])].map((name) => ({
+        display: `/${name}`,
         description: command.description ?? command.title,
-        aliases: slash.aliases?.map((alias) => `/${alias}`),
-        onSelect: slash.arguments ? () => insertSlash(slash.name) : command.run,
-      }
+        onSelect: slash.arguments ? () => insertSlash(name) : command.run,
+      }))
     })
     const commandNames = new Set<string>()
 

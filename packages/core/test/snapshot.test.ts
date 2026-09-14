@@ -3,13 +3,13 @@ import { describe, expect } from "bun:test"
 import fs from "fs/promises"
 import path from "path"
 import { Deferred, Effect, Fiber, Layer } from "effect"
-import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
-import { Git } from "@opencode-ai/core/git"
-import { Global } from "@opencode-ai/util/global"
-import { Location } from "@opencode-ai/core/location"
-import { AbsolutePath, RelativePath } from "@opencode-ai/core/schema"
-import { Snapshot } from "@opencode-ai/core/snapshot"
-import { Hash } from "@opencode-ai/util/hash"
+import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
+import { Git } from "@opencode/core/git"
+import { Global } from "@opencode/util/global"
+import { Location } from "@opencode/core/location"
+import { AbsolutePath, RelativePath } from "@opencode/core/schema"
+import { Snapshot } from "@opencode/core/snapshot"
+import { Hash } from "@opencode/util/hash"
 import { tmpdir } from "./fixture/tmpdir"
 import { testEffect } from "./lib/effect"
 
@@ -122,31 +122,6 @@ describe("Snapshot", () => {
             expect(yield* read(path.join(location, "added.txt"))).toBe("added\n")
             expect(yield* read(path.join(project, "outside.txt"))).toBe("changed outside\n")
           }).pipe(Effect.provide(layer))
-        }),
-      (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
-    ),
-  )
-
-  testEffect(Layer.empty).live("treats fatal ignore checks as unavailable captures", () =>
-    Effect.acquireUseRelease(
-      Effect.promise(() => tmpdir()),
-      (tmp) =>
-        Effect.gen(function* () {
-          const project = path.join(tmp.path, "project")
-          yield* Effect.promise(async () => {
-            await fs.mkdir(project)
-            await Bun.write(path.join(project, "tracked.txt"), "one\n")
-            await initGit(project)
-          })
-          yield* Effect.gen(function* () {
-            const snapshot = yield* Snapshot.Service
-            expect(yield* snapshot.capture()).toBeDefined()
-            yield* Effect.promise(async () => {
-              await Bun.write(path.join(project, "tracked.txt"), "two\n")
-              await Bun.write(path.join(project, ".git", "config"), "[broken\n")
-            })
-            expect(yield* snapshot.capture()).toBeUndefined()
-          }).pipe(Effect.provide(snapshotLayer(tmp.path, project)))
         }),
       (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
     ),

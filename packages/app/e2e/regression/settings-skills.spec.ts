@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
-import { Preferences } from "@opencode-ai/schema/preferences"
-import { base64Encode } from "@opencode-ai/util/encode"
+import { Preferences } from "@opencode/schema/preferences"
+import { base64Encode } from "@opencode/util/encode"
 import { Schema } from "effect"
 import { mockOpenCodeServer } from "../utils/mock-server"
 import { installSseTransport } from "../utils/sse-transport"

@@ -2,7 +2,7 @@
 import { testRender } from "@opentui/solid"
 import { expect, test } from "bun:test"
 import { onMount } from "solid-js"
-import { Skill } from "@opencode-ai/schema/skill"
+import { Skill } from "@opencode/schema/skill"
 import { Schema } from "effect"
 import { DialogSkill } from "../../../src/component/dialog-skill"
 import { ConfigProvider } from "../../../src/config"
@@ -107,7 +107,7 @@ async function renderSkills(preference?: Skill.Activation) {
     name: id === "effect" ? "Effect" : "Review",
     description: `Use ${id} guidance`,
     content: "Fixture guidance",
-    location: `/skills/${id}.md`,
+    path: `/skills/${id}/SKILL.md`,
   }))
   const calls = createFetch(async (url, request) => {
     if (url.pathname === "/api/preferences")

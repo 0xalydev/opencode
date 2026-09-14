@@ -8,7 +8,7 @@ import {
   type SessionInfo,
   type SkillInfo,
   type TokenUsageInfo,
-} from "@opencode-ai/client/promise"
+} from "@opencode/client/promise"
 import { ACPService } from "../../src/acp/service"
 
 export type FixtureRequest = {
@@ -95,7 +95,7 @@ export const verifySkill = {
   name: "verify",
   description: "Verify work",
   slash: true,
-  location: "/skills/verify.md",
+  path: "/skills/verify/SKILL.md",
   content: "verify",
 } satisfies SkillInfo
 
@@ -128,8 +128,8 @@ export function makeACPFixture(options: FixtureOptions = {}) {
   const requests: FixtureRequest[] = []
   const updates: Parameters<AgentSideConnection["sessionUpdate"]>[0][] = []
   const encoder = new TextEncoder()
-  const connection = new AbortController()
   let eventController: ReadableStreamDefaultController<Uint8Array> | undefined
+  const connection = new AbortController()
   const models = options.models ?? [testModel, secondModel]
   const context: FixtureContext = {
     requests,
@@ -154,7 +154,6 @@ export function makeACPFixture(options: FixtureOptions = {}) {
 
       const directory = request.query["location[directory]"] ?? "/workspace"
       const location = { directory, project: { id: "global", directory } }
-      if (request.path === "/api/plugin/await-activation") return new Response(null, { status: 204 })
       if (request.path === "/api/event") {
         let controller: ReadableStreamDefaultController<Uint8Array> | undefined
         return new Response(

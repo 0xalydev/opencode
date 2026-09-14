@@ -2,13 +2,13 @@ import { expect, test } from "bun:test"
 import { EmbeddedTerminalRenderable } from "@opentui/core"
 import { createTestRenderer } from "@opentui/core/testing"
 import { Effect, FileSystem } from "effect"
-import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
-import { Global } from "@opencode-ai/util/global"
+import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
+import { Global } from "@opencode/util/global"
 import path from "node:path"
 import { createEventStream, createFetch, directory, json } from "./fixture/tui-client"
 import { tmpdir } from "./fixture/fixture"
 import { createAppFixture } from "./fixture/app"
-import type { PluginInfo } from "@opencode-ai/client"
+import type { PluginInfo } from "@opencode/client"
 
 test.each([100, 44])("Ctrl-O is immediate, dismissible, and prunes cached deletions at width %s", async (width) => {
   await using state = await tmpdir()
@@ -335,7 +335,7 @@ test("session lifecycle updates the terminal title and prints the epilogue after
     await task
 
     expect(stdout).toContain("Renamed session")
-    expect(stdout).toContain("opencode2 -s dummy")
+    expect(stdout).toContain("opencode -s dummy")
     expect(promptRequests).toBe(0)
   } finally {
     process.stdout.write = originalWrite
@@ -428,6 +428,46 @@ test("session title generated while an untitled session is loading remains visib
     if (!setup.renderer.isDestroyed) setup.renderer.destroy()
     await server.stop()
   }
+})
+
+test("vertical session tabs collapse to a compact rail with the terminal", async () => {
+  await using state = await tmpdir()
+  await Bun.write(path.join(state.path, "test", "tui", "layout.json"), JSON.stringify({ verticalTabsWidth: 42 }))
+  const session = {
+    id: "ses_resize",
+    title: "Resize fixture",
+    projectID: "project",
+    location: { directory },
+    cost: 0,
+    tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+    time: { created: 1, updated: 2 },
+  }
+  await using setup = await createAppFixture({
+    width: 100,
+    state: state.path,
+    config: {
+      animations: false,
+      tabs: { enabled: true, layout: "vertical", indicators: "status" },
+      session: { sidebar: "hide" },
+    },
+    args: { sessionID: session.id },
+    fetch: (url) => {
+      if (url.pathname === `/api/session/${session.id}`) return json({ data: session })
+      if (/^\/api\/session\/ses_resize\/(message|inbox|permission)$/.test(url.pathname))
+        return json({ data: [], cursor: {} })
+      return undefined
+    },
+  })
+  await setup.ready
+  await setup.waitForFrame((frame) => frame.split("\n")[1].slice(0, 42).includes(session.title))
+
+  setup.resize(54, 30)
+  await setup.waitForFrame((frame) => frame.split("\n")[1].slice(0, 10).trim() === "⌕")
+  setup.resize(48, 30)
+  await setup.waitForFrame((frame) => frame.split("\n")[0].includes(session.title))
+  expect(setup.captureCharFrame()).not.toContain("⌕")
+  setup.resize(100, 30)
+  await setup.waitForFrame((frame) => frame.split("\n")[1].slice(0, 42).includes(session.title))
 })
 
 test("automatic rename refreshes the displayed title before settling, even without a renamed event", async () => {
@@ -1179,9 +1219,9 @@ test("keeps the prompt display stable while a new location catalog loads", async
   }
 })
 
-test("configured app bindings execute settings and permission commands", async () => {
+test("configured app binding opens settings", async () => {
   await using setup = await createAppFixture({
-    config: { animations: false, keybinds: { "opencode.settings": "f6", "permission.mode": "f7" } },
+    config: { animations: false, keybinds: { "opencode.settings": "f6" } },
   })
   await setup.ready
   await setup.waitForFrame((frame) => frame.includes("commands"))
@@ -1190,23 +1230,6 @@ test("configured app bindings execute settings and permission commands", async (
   const settings = await setup.waitForFrame((frame) => frame.includes("Settings"))
   expect(settings).toContain("Color mode")
   expect(settings).toContain("Animations")
-
-  setup.mockInput.pressEscape()
-  await setup.waitForFrame((frame) => !frame.includes("Settings"))
-  setup.mockInput.pressKey("F7")
-  await setup.renderOnce()
-  setup.mockInput.pressKey("p", { ctrl: true })
-  await setup.waitForFrame((frame) => frame.includes("Commands"))
-  setup.mockInput.pressKey("END")
-  const commands = await setup.waitForFrame(
-    (frame) => {
-      if (frame.includes("Disable auto-approve permissions")) return true
-      setup.mockInput.pressArrow("up")
-      return false
-    },
-    { maxPasses: 100 },
-  )
-  expect(commands).not.toContain("Enable auto-approve permissions")
 })
 
 test("ctrl+c dismisses autocomplete and shell mode before exiting", async () => {
@@ -1227,7 +1250,7 @@ test("ctrl+c dismisses autocomplete and shell mode before exiting", async () => 
   expect(setup.renderer.isDestroyed).toBe(false)
 })
 
-test.each(["manual", "select"] as const)(
+test.skipIf(process.platform === "win32").each(["manual", "select"] as const)(
   "selection copy and pane management respect %s mode in the prompt and terminal pane",
   async (copy) => {
     const setup = await createTestRenderer({ width: 100, height: 30, useThread: false, kittyKeyboard: true })
@@ -1305,7 +1328,6 @@ test.each(["manual", "select"] as const)(
             get: async () => ({
               animations: false,
               terminal: { copy },
-              session: { terminal: true },
             }),
             update: async () => ({}),
           },

@@ -1,15 +1,15 @@
 import { describe, expect, test } from "bun:test"
-import { Message } from "@opencode-ai/ai"
-import { Model } from "@opencode-ai/core/model"
-import { Provider } from "@opencode-ai/core/provider"
-import { SessionMessage } from "@opencode-ai/core/session/message"
-import { AgentAttachment, Base64, FileAttachment, SkillAttachment } from "@opencode-ai/schema/prompt"
-import { Skill } from "@opencode-ai/schema/skill"
-import { toLLMMessages } from "@opencode-ai/core/session/runner/to-llm-message"
-import { Agent } from "@opencode-ai/core/agent"
-import { Shell } from "@opencode-ai/schema/shell"
-import { Location } from "@opencode-ai/schema/location"
-import { AbsolutePath } from "@opencode-ai/schema/schema"
+import { Message } from "@opencode/ai"
+import { Model } from "@opencode/core/model"
+import { Provider } from "@opencode/core/provider"
+import { SessionMessage } from "@opencode/core/session/message"
+import { AgentAttachment, Base64, FileAttachment, SkillAttachment } from "@opencode/schema/prompt"
+import { Skill } from "@opencode/schema/skill"
+import { toLLMMessages } from "@opencode/core/session/runner/to-llm-message"
+import { Agent } from "@opencode/core/agent"
+import { Shell } from "@opencode/schema/shell"
+import { Location } from "@opencode/schema/location"
+import { AbsolutePath } from "@opencode/schema/schema"
 import { DateTime } from "effect"
 import path from "path"
 import { pathToFileURL } from "url"
@@ -200,6 +200,44 @@ Recent work
         },
       ],
     ])
+  })
+
+  describe("model-switched", () => {
+    const ref = (variant?: string) =>
+      Model.Ref.make({
+        id: Model.ID.make("model"),
+        providerID: Provider.ID.make("provider"),
+        ...(variant === undefined ? {} : { variant: Model.VariantID.make(variant) }),
+      })
+    const switched = (to: Model.Ref, previous?: Model.Ref) =>
+      SessionMessage.ModelSelected.make({
+        id: id("model"),
+        type: "model-switched",
+        model: to,
+        previous,
+        time: { created },
+      })
+
+    test("records a same-model effort switch as an effort update", () => {
+      expect(toLLMMessages([switched(ref("low"), ref("high"))], ref("low"))).toEqual([
+        Message.effort({ effort: "low", previous: "high" }),
+      ])
+    })
+
+    test("maps the default variant and no variant to the model default effort", () => {
+      expect(toLLMMessages([switched(ref("low"), ref())], ref("low"))).toEqual([Message.effort({ effort: "low" })])
+      expect(toLLMMessages([switched(ref("default"), ref("max"))], ref())).toEqual([
+        Message.effort({ previous: "max" }),
+      ])
+    })
+
+    test("ignores switches that are not effort changes on the requested model", () => {
+      const other = Model.Ref.make({ id: Model.ID.make("other"), providerID: Provider.ID.make("provider") })
+      expect(toLLMMessages([switched(ref("low"))], ref("low"))).toEqual([])
+      expect(toLLMMessages([switched(ref("low"), other)], ref("low"))).toEqual([])
+      expect(toLLMMessages([switched(ref("thinking"), ref("high"))], ref("thinking"))).toEqual([])
+      expect(toLLMMessages([switched(ref("low"), ref("high"))], other)).toEqual([])
+    })
   })
 
   test("lowers text attachments after the prompt in one user message", () => {

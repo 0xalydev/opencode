@@ -2,22 +2,21 @@ import fs from "fs/promises"
 import path from "path"
 import { describe, expect } from "bun:test"
 import { Effect, Layer } from "effect"
-import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
-import { LayerNode } from "@opencode-ai/util/effect/layer-node"
-import { Permission } from "@opencode-ai/core/permission"
-import { AbsolutePath } from "@opencode-ai/core/schema"
-import { Session } from "@opencode-ai/core/session"
-import { Skill } from "@opencode-ai/core/skill"
-import { Preferences } from "@opencode-ai/core/preferences"
-import { SkillTool } from "@opencode-ai/core/tool/plugin/skill"
-import { Tool } from "@opencode-ai/core/tool"
+import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
+import { LayerNode } from "@opencode/util/effect/layer-node"
+import { Permission } from "@opencode/core/permission"
+import { AbsolutePath } from "@opencode/core/schema"
+import { Session } from "@opencode/core/session"
+import { Skill } from "@opencode/core/skill"
+import { SkillTool } from "@opencode/core/tool/plugin/skill"
+import { Tool } from "@opencode/core/tool"
 import { tmpdir } from "./fixture/tmpdir"
-import { Image } from "@opencode-ai/core/image"
+import { Image } from "@opencode/core/image"
 import { it } from "./lib/effect"
 import { imagePassthrough } from "./lib/image"
 import { permissionLayer } from "./lib/permission"
-import { makeLocationNode } from "@opencode-ai/util/effect/app-node"
-import { FSUtil } from "@opencode-ai/util/fs-util"
+import { makeLocationNode } from "@opencode/util/effect/app-node"
+import { FSUtil } from "@opencode/util/fs-util"
 import { toolIdentity, executeTool, registerToolPlugin, toolDefinitions } from "./lib/tool"
 
 const skillToolNode = makeLocationNode({
@@ -29,45 +28,6 @@ const skillToolNode = makeLocationNode({
 const sessionID = Session.ID.make("ses_skill_tool_test")
 
 describe("SkillTool", () => {
-  it.effect("the registered skill tool observes preference changes at execution", () =>
-    Effect.gen(function* () {
-      const registry = yield* Tool.Service
-      const skills = yield* Skill.Service
-      const preferences = yield* Preferences.Service
-      const info = Skill.Info.make({
-        id: Skill.ID.make("effect"),
-        name: Skill.Name.make("Effect"),
-        content: "Use Effect",
-        location: AbsolutePath.make("/skills/effect.md"),
-      })
-      yield* skills.transform((editor) => editor.add(info))
-      const target = { kind: "skill.activation", id: info.id } as const
-      yield* preferences.set(target, "disabled")
-      expect(
-        yield* executeTool(registry, {
-          sessionID,
-          ...toolIdentity,
-          call: { type: "tool-call", id: "call-disabled", name: "skill", input: { id: info.id } },
-        }),
-      ).toMatchObject({ status: "error", error: { message: expect.stringContaining("is disabled") } })
-      yield* preferences.set(target, "enabled")
-      expect(
-        yield* executeTool(registry, {
-          sessionID,
-          ...toolIdentity,
-          call: { type: "tool-call", id: "call-enabled", name: "skill", input: { id: info.id } },
-        }),
-      ).toMatchObject({ status: "completed", output: { name: "Effect" } })
-    }).pipe(
-      Effect.provide(
-        AppNodeBuilder.build(LayerNode.group([Tool.node, skillToolNode, Skill.node, Preferences.node]), [
-          Permission.node.replace(permissionLayer({ assert: () => Effect.void })),
-          Image.node.replace(imagePassthrough),
-        ]),
-      ),
-    ),
-  )
-
   it.live("lists available skills, authorizes the selected ID, and loads model-facing content", () =>
     Effect.acquireRelease(
       Effect.promise(() => tmpdir()),
@@ -87,7 +47,7 @@ describe("SkillTool", () => {
             id: Skill.ID.make("effect"),
             name: Skill.Name.make("Effect"),
             description: "Use Effect",
-            location: AbsolutePath.make(location),
+            path: AbsolutePath.make(location),
             content: "# Effect\n\nGuidance",
           }
           let current = [info]
@@ -178,12 +138,12 @@ describe("SkillTool", () => {
               id: Skill.ID.make("public"),
               name: Skill.Name.make("Public"),
               description: "Public guidance",
-              location: AbsolutePath.make(path.join(tmp.path, "public.md")),
+              path: AbsolutePath.make(path.join(tmp.path, "public.md")),
               content: "Public",
             })
             yield* Effect.promise(() =>
               Promise.all([
-                fs.writeFile(flat.location, "public"),
+                fs.writeFile(flat.path, "public"),
                 fs.writeFile(path.join(tmp.path, "secret.md"), "secret"),
               ]),
             )

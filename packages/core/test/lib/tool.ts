@@ -1,11 +1,11 @@
-import { Agent } from "@opencode-ai/core/agent"
-import { CodeModeCatalog } from "@opencode-ai/core/codemode/catalog"
-import type { Permission } from "@opencode-ai/core/permission"
-import { SessionMessage } from "@opencode-ai/core/session/message"
-import { toSessionError } from "@opencode-ai/core/session/to-session-error"
-import type { SessionError } from "@opencode-ai/schema/session-error"
-import { Tool } from "@opencode-ai/core/tool"
-import type { Context } from "@opencode-ai/plugin/effect/plugin"
+import { Agent } from "@opencode/core/agent"
+import { CodeModeCatalog } from "@opencode/core/codemode/catalog"
+import type { Permission } from "@opencode/core/permission"
+import { SessionMessage } from "@opencode/core/session/message"
+import { toSessionError } from "@opencode/core/session/to-session-error"
+import type { SessionError } from "@opencode/schema/session-error"
+import { Tool } from "@opencode/core/tool"
+import type { Context } from "@opencode/plugin/effect/plugin"
 import { Effect, type Scope } from "effect"
 import { host } from "../plugin/host"
 
@@ -66,7 +66,8 @@ export const registerToolPlugin = <R>(
     const context = host({
       ...overrides,
       session: {
-        hook: () => Effect.succeed({ dispose: Effect.void }),
+        ...overrides.session,
+        hook: overrides.session?.hook ?? (() => Effect.succeed({ dispose: Effect.void })),
       },
       tool: {
         transform: tools.transform,

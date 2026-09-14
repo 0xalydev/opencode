@@ -1,4 +1,4 @@
-import { Preferences } from "@opencode-ai/schema/preferences"
+import { Preferences } from "@opencode/schema/preferences"
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/unstable/httpapi"
 

@@ -1,13 +1,11 @@
 import path from "path"
 import { describe, expect } from "bun:test"
 import { Effect, Layer } from "effect"
-import { Agent } from "@opencode-ai/core/agent"
-import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
-import { AbsolutePath } from "@opencode-ai/core/schema"
-import { Skill } from "@opencode-ai/core/skill"
-import { SkillInstructions } from "@opencode-ai/core/skill/instructions"
-import { Preferences } from "@opencode-ai/core/preferences"
-import { LayerNode } from "@opencode-ai/util/effect/layer-node"
+import { Agent } from "@opencode/core/agent"
+import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
+import { AbsolutePath } from "@opencode/core/schema"
+import { Skill } from "@opencode/core/skill"
+import { SkillInstructions } from "@opencode/core/skill/instructions"
 import { it } from "../lib/effect"
 import { readInitial, readUpdate } from "../lib/instructions"
 
@@ -16,20 +14,20 @@ const effect = Skill.Info.make({
   id: Skill.ID.make("effect"),
   name: Skill.Name.make("Effect"),
   description: "Build applications with Effect",
-  location: AbsolutePath.make(path.resolve("/skills/effect/SKILL.md")),
+  path: AbsolutePath.make(path.resolve("/skills/effect/SKILL.md")),
   content: "Effect guidance",
 })
 const hidden = Skill.Info.make({
   id: Skill.ID.make("hidden"),
   name: Skill.Name.make("Hidden"),
-  location: AbsolutePath.make(path.resolve("/skills/hidden/SKILL.md")),
+  path: AbsolutePath.make(path.resolve("/skills/hidden/SKILL.md")),
   content: "Undescribed guidance",
 })
 const denied = Skill.Info.make({
   id: Skill.ID.make("denied"),
   name: Skill.Name.make("Denied"),
   description: "Must not be advertised",
-  location: AbsolutePath.make(path.resolve("/skills/denied/SKILL.md")),
+  path: AbsolutePath.make(path.resolve("/skills/denied/SKILL.md")),
   content: "Denied guidance",
 })
 const manual = Skill.Info.make({
@@ -37,7 +35,7 @@ const manual = Skill.Info.make({
   name: Skill.Name.make("Manual"),
   description: "Load only when explicitly selected",
   autoinvoke: false,
-  location: AbsolutePath.make(path.resolve("/skills/manual/SKILL.md")),
+  path: AbsolutePath.make(path.resolve("/skills/manual/SKILL.md")),
   content: "Manual guidance",
 })
 
@@ -47,38 +45,6 @@ const layer = (list: () => Skill.Info[]) =>
   ])
 
 describe("SkillInstructions", () => {
-  it.effect("applies live preferences without overriding autoinvoke or permissions", () =>
-    Effect.gen(function* () {
-      const skills = yield* Skill.Service
-      const preferences = yield* Preferences.Service
-      const instructions = yield* SkillInstructions.Service
-      const agent = Agent.Info.make({
-        ...Agent.Info.default(build),
-        permissions: [{ action: "skill", resource: "denied", effect: "deny" }],
-      })
-      yield* skills.transform((editor) => [effect, manual, denied].forEach(editor.add))
-      yield* preferences.set({ kind: "skill.activation", id: manual.id }, "enabled")
-      yield* preferences.set({ kind: "skill.activation", id: denied.id }, "enabled")
-      const initial = yield* instructions.load({ id: agent.id, info: agent }).pipe(Effect.flatMap(readInitial))
-      expect(initial.text).toContain("<id>effect</id>")
-      expect(initial.text).not.toContain("<id>manual</id>")
-      expect(initial.text).not.toContain("<id>denied</id>")
-      expect(yield* skills.get(manual.id)).toEqual(manual)
-
-      yield* preferences.set({ kind: "skill.activation", id: effect.id }, "disabled")
-      const removed = yield* instructions
-        .load({ id: agent.id, info: agent })
-        .pipe(Effect.flatMap((current) => readUpdate(current, initial)))
-      expect(removed.text).toContain("Do not use any previously listed skill")
-      yield* preferences.reset({ kind: "skill.activation", id: effect.id })
-      expect(
-        (yield* instructions.load({ id: agent.id, info: agent }).pipe(Effect.flatMap(readInitial))).text,
-      ).toContain("<id>effect</id>")
-    }).pipe(
-      Effect.provide(AppNodeBuilder.build(LayerNode.group([Skill.node, SkillInstructions.node, Preferences.node]))),
-    ),
-  )
-
   it.effect("renders described agent skills and updates the complete available list", () => {
     const agent = Agent.Info.make({
       ...Agent.Info.default(build),
@@ -119,7 +85,7 @@ describe("SkillInstructions", () => {
       id: Skill.ID.make("debugging"),
       name: Skill.Name.make("Debugging"),
       description: "Diagnose hard bugs",
-      location: AbsolutePath.make(path.resolve("/skills/debugging/SKILL.md")),
+      path: AbsolutePath.make(path.resolve("/skills/debugging/SKILL.md")),
       content: "Debugging guidance",
     })
     let skills = [effect]

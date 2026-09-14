@@ -8,9 +8,9 @@
 
 ## Live V2 TUI Testing
 
-- Run `bun run dev:live` from a development worktree to test its TUI against the currently elected `opencode2` background server and live sessions.
+- Run `bun run dev:live` from a development worktree to test its TUI against the currently elected `opencode` background server and live sessions.
 - Pass a directory after the script when needed, for example `bun run dev:live /path/to/project`.
-- The script discovers the server with `opencode2 service status`, injects its private local credential from `opencode2 service get password`, and uses the `dev` TUI storage channel so tabs and other client-local state match the installed client.
+- The script discovers the server with `opencode service status`, injects its private local credential from `opencode service get password`, and uses the `dev` TUI storage channel so tabs and other client-local state match the installed client.
 - Prefer `dev:live` over plain `bun run dev` for this workflow. An implicit managed-service connection may replace the live server when the worktree client version differs; explicit `--server` warns and continues without replacing it.
 
 ## V2 TUI Stories
@@ -84,9 +84,9 @@ const { a, b } = obj
 ### Imports
 
 - Never alias imports. Do not use `import { foo as bar } from "..."` or renamed imports like `resolve as pathResolve`.
-- Never use type-position `import("...")` references such as `Schema.declare<import("@opencode-ai/plugin/effect/plugin").Plugin["effect"]>`. Only when two imports genuinely collide on a name and no other option exists, an aliased type import (`import type { Plugin as PluginDefinition } from "..."`) is permitted as a last resort — still strongly preferred not to.
+- Never use type-position `import("...")` references such as `Schema.declare<import("@opencode/plugin/effect/plugin").Plugin["effect"]>`. Only when two imports genuinely collide on a name and no other option exists, an aliased type import (`import type { Plugin as PluginDefinition } from "..."`) is permitted as a last resort — still strongly preferred not to.
 - Never use star imports. Do not use `import * as Foo from "..."` or `import type * as Foo from "..."`.
-- If a namespace-style value is needed, import the module's own exported namespace by name, for example `import { Project } from "@opencode-ai/core/project"`, then reference `Project.ID`.
+- If a namespace-style value is needed, import the module's own exported namespace by name, for example `import { Project } from "@opencode/core/project"`, then reference `Project.ID`.
 - Prefer dynamic imports for heavy modules that are only needed in selected code paths, especially in startup-sensitive entrypoints. Destructure dynamic import bindings near the top of the narrowest scope that needs them so they read like normal imports. Avoid inline chains such as `await import("./module").then((mod) => mod.value())` or `(await import("./module")).value()`. Keep branch-specific imports inside the branch that needs them to preserve lazy loading.
 
 ### Variables
@@ -170,9 +170,10 @@ const table = sqliteTable("session", {
 - Test actual implementation, do not duplicate logic into tests
 - Tests cannot run from repo root (guard: `do-not-run-tests-from-root`); run from package directories such as `packages/core`.
 
-## Type Checking
+## Checks
 
-- Always run `bun typecheck` from package directories (for example, `packages/core`), never `tsc` directly.
+- Run `bun run check` from the repository root as the canonical full lint and type-check verification.
+- During focused iteration, run `bun typecheck` from the affected package directory (for example, `packages/core`). Never run `tsc` directly.
 
 ## V2 Session Core
 

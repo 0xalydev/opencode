@@ -1,8 +1,8 @@
 import { describe, expect } from "bun:test"
 import { Effect } from "effect"
-import { Bus } from "@opencode-ai/core/bus"
-import { Preferences } from "@opencode-ai/core/preferences"
-import { LayerNode } from "@opencode-ai/util/effect/layer-node"
+import { Bus } from "@opencode/core/bus"
+import { Preferences } from "@opencode/core/preferences"
+import { LayerNode } from "@opencode/util/effect/layer-node"
 import { testEffect } from "./lib/effect"
 
 const it = testEffect(LayerNode.compile(LayerNode.group([Preferences.node, Bus.node])))

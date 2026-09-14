@@ -1,6 +1,6 @@
-import { Tool } from "@opencode-ai/schema/tool"
-import type { Rpc } from "@opencode-ai/schema/rpc"
-import type { RpcCallOptions, RpcEventPayload } from "@opencode-ai/client/promise/api"
+import { Tool } from "@opencode/schema/tool"
+import type { Rpc } from "@opencode/schema/rpc"
+import type { RpcCallOptions, RpcEventPayload } from "@opencode/client/promise/api"
 import { Effect, Schema, SchemaAST, Stream } from "effect"
 import type { Scope } from "effect"
 import { HttpApiEndpoint, HttpApiSchema } from "effect/unstable/httpapi"
@@ -26,6 +26,7 @@ interface CompiledEndpoint {
 }
 
 const compiledEndpoints = new WeakMap<object, CompiledEndpoint>()
+const JsonInput = Schema.fromJsonString(Schema.Unknown)
 
 interface HostRpcCallContext {
   readonly error: (type: string, message: string, data?: unknown) => unknown
@@ -129,6 +130,7 @@ const rpcFromEffect = Effect.fn("Plugin.Rpc.fromEffect")(function* (host: HostRp
                 try: (signal) => {
                   // SAFETY: Promise RPC handlers return Promise values before this adapter erases their concrete types.
                   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+                  // oxlint-disable-next-line no-restricted-globals -- The portable RPC registry intentionally erases each handler's concrete signature.
                   return Reflect.apply(handler, undefined, [
                     input,
                     {
@@ -217,7 +219,7 @@ export function fromPromise(plugin: Plugin) {
     effect: (host) =>
       Effect.gen(function* () {
         const [{ ClientApi }, { OpenCodeEvent }] = yield* Effect.promise(() =>
-          Promise.all([import("@opencode-ai/protocol/client"), import("@opencode-ai/protocol/groups/event")]),
+          Promise.all([import("@opencode/protocol/client"), import("@opencode/protocol/groups/event")]),
         )
         const AgentEndpoints = ClientApi.groups["server.agent"].endpoints
         const CommandEndpoints = ClientApi.groups["server.command"].endpoints
@@ -263,7 +265,11 @@ export function fromPromise(plugin: Plugin) {
           const compiled = compileEndpoint(endpoint)
           return ((input?: unknown) =>
             Effect.gen(function* () {
-              const decoded = yield* Effect.forEach(compiled.decode, (decode) => decode(input ?? {}))
+              // Match the generated Promise client, whose request body crosses JSON before endpoint decoding.
+              const normalized = yield* Schema.encodeUnknownEffect(JsonInput)(input ?? {}).pipe(
+                Effect.flatMap(Schema.decodeUnknownEffect(JsonInput)),
+              )
+              const decoded = yield* Effect.forEach(compiled.decode, (decode) => decode(normalized))
               const result = yield* method(Object.assign({}, ...decoded) as never)
               if (compiled.noContent) return undefined
               return yield* compiled.encode(result)
@@ -433,6 +439,7 @@ export function fromPromise(plugin: Plugin) {
             list: adaptApiMethod(PermissionEndpoints["session.permission.list"], host.permission.list),
             get: adaptApiMethod(PermissionEndpoints["session.permission.get"], host.permission.get),
             reply: adaptApiMethod(PermissionEndpoints["session.permission.reply"], host.permission.reply),
+            rules: adaptApiMethod(PermissionEndpoints["session.permission.rules"], host.permission.rules),
           },
           plugin: {
             list: adaptApiMethod(PluginEndpoints["plugin.list"], host.plugin.list),

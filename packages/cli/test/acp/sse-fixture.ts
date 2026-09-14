@@ -1,4 +1,4 @@
-import { OpenCode, type OpenCodeEvent, type SessionMessageInfo } from "@opencode-ai/client/promise"
+import { OpenCode, type OpenCodeEvent, type SessionMessageInfo } from "@opencode/client/promise"
 
 type DurableEvent = Extract<OpenCodeEvent, { durable: unknown }>
 type EphemeralEvent = Exclude<OpenCodeEvent, DurableEvent>
@@ -190,7 +190,7 @@ export async function withTimeout<Value>(promise: Promise<Value>, message: strin
 
 function stringField(value: unknown, key: string) {
   if (!value || typeof value !== "object") return undefined
-  const field = Reflect.get(value, key)
+  const field = (value as Record<string, unknown>)[key]
   return typeof field === "string" ? field : undefined
 }
 

@@ -1,12 +1,12 @@
-import { Session } from "@opencode-ai/core/session"
-import { SessionStats } from "@opencode-ai/core/session/stats"
-import { SessionTitle } from "@opencode-ai/core/session/title"
-import { SessionTransfer } from "@opencode-ai/core/session/transfer"
-import { InstructionEntry } from "@opencode-ai/core/session/instruction-entry"
+import { Session } from "@opencode/core/session"
+import { SessionStats } from "@opencode/core/session/stats"
+import { SessionTitle } from "@opencode/core/session/title"
+import { SessionTransfer } from "@opencode/core/session/transfer"
+import { InstructionEntry } from "@opencode/core/session/instruction-entry"
 import { DateTime, Effect, Stream } from "effect"
 import { HttpApiBuilder, HttpApiSchema } from "effect/unstable/httpapi"
 import { Api } from "../api"
-import { SessionsCursor } from "@opencode-ai/protocol/groups/session"
+import { SessionsCursor } from "@opencode/protocol/groups/session"
 import {
   ConflictError,
   CommandExecutionError,
@@ -18,10 +18,9 @@ import {
   SessionBusyError,
   SkillNotFoundError,
   SkillDisabledError,
-  UnknownError,
-} from "@opencode-ai/protocol/errors"
-import { AbsolutePath } from "@opencode-ai/core/schema"
-import { failedMessageDecode, missingSession } from "./session-error"
+} from "@opencode/protocol/errors"
+import { AbsolutePath } from "@opencode/core/schema"
+import { failedMessageDecode, failedSnapshot, missingMessage, missingSession } from "./session-error"
 
 const DefaultSessionsLimit = 50
 
@@ -56,7 +55,6 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
               : ctx.query
           const page = yield* session.list({
             ...query,
-            workspaceID: query.workspace,
             limit: ctx.query.limit ?? DefaultSessionsLimit,
           })
           const sessions = page.data
@@ -121,6 +119,7 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
                 agent: ctx.payload.agent,
                 model: ctx.payload.model,
                 metadata: ctx.payload.metadata,
+                permissions: ctx.payload.permissions,
                 location: ctx.payload.location ?? { directory: AbsolutePath.make(process.cwd()) },
               })
               .pipe(Effect.orDie),
@@ -211,17 +210,9 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
         "session.fork",
         Effect.fn(function* (ctx) {
           return {
-            data: yield* session.fork({ sessionID: ctx.params.sessionID, boundary: ctx.payload.boundary }).pipe(
+            data: yield* session.fork({ sessionID: ctx.params.sessionID, before: ctx.payload.before }).pipe(
               Effect.catchTag("Session.NotFoundError", missingSession),
-              Effect.catchTag(
-                "Session.MessageNotFoundError",
-                (error) =>
-                  new MessageNotFoundError({
-                    sessionID: error.sessionID,
-                    messageID: error.messageID,
-                    message: `Message not found: ${error.messageID}`,
-                  }),
-              ),
+              Effect.catchTag("Session.MessageNotFoundError", missingMessage),
               Effect.catchTag(
                 "Session.ForkEmptyError",
                 (error) => new InvalidRequestError({ message: error.message, kind: "empty_session" }),
@@ -269,7 +260,6 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
             .move({
               sessionID: ctx.params.sessionID,
               directory: ctx.payload.directory,
-              workspaceID: ctx.payload.workspaceID,
               delivery: ctx.payload.delivery,
             })
             .pipe(
@@ -457,32 +447,14 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
             files: ctx.payload.files,
           })
           return {
-            data: yield* session.revert.stage({ ...ctx.params, ...ctx.payload }).pipe(
-              Effect.catchTag("Session.NotFoundError", missingSession),
-              Effect.catchTag(
-                "Session.MessageNotFoundError",
-                (error) =>
-                  new MessageNotFoundError({
-                    sessionID: error.sessionID,
-                    messageID: error.messageID,
-                    message: `Message not found: ${error.messageID}`,
-                  }),
+            data: yield* session.revert
+              .stage({ ...ctx.params, ...ctx.payload })
+              .pipe(
+                Effect.catchTag("Session.NotFoundError", missingSession),
+                Effect.catchTag("Session.MessageNotFoundError", missingMessage),
+                Effect.catchTag("Session.BusyError", busySession),
+                Effect.catchTag("Snapshot.Error", failedSnapshot("stage session revert", ctx.params.sessionID)),
               ),
-              Effect.catchTag("Session.BusyError", busySession),
-              Effect.catchTag("Snapshot.Error", (error) => {
-                const ref = `err_${crypto.randomUUID().slice(0, 8)}`
-                return Effect.logError("failed to stage session revert", { cause: error }).pipe(
-                  Effect.andThen(
-                    Effect.fail(
-                      new UnknownError({
-                        message: "Unexpected server error. Check server logs for details.",
-                        ref,
-                      }),
-                    ),
-                  ),
-                )
-              }),
-            ),
           }
         }),
       )
@@ -490,23 +462,13 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
         "session.revert.clear",
         Effect.fn(function* (ctx) {
           yield* Effect.log("session.revert.clear", { sessionID: ctx.params.sessionID })
-          yield* session.revert.clear(ctx.params.sessionID).pipe(
-            Effect.catchTag("Session.NotFoundError", missingSession),
-            Effect.catchTag("Session.BusyError", busySession),
-            Effect.catchTag("Snapshot.Error", (error) => {
-              const ref = `err_${crypto.randomUUID().slice(0, 8)}`
-              return Effect.logError("failed to clear session revert", { cause: error }).pipe(
-                Effect.andThen(
-                  Effect.fail(
-                    new UnknownError({
-                      message: "Unexpected server error. Check server logs for details.",
-                      ref,
-                    }),
-                  ),
-                ),
-              )
-            }),
-          )
+          yield* session.revert
+            .clear(ctx.params.sessionID)
+            .pipe(
+              Effect.catchTag("Session.NotFoundError", missingSession),
+              Effect.catchTag("Session.BusyError", busySession),
+              Effect.catchTag("Snapshot.Error", failedSnapshot("clear session revert", ctx.params.sessionID)),
+            )
           return HttpApiSchema.NoContent.make()
         }),
       )
@@ -533,6 +495,22 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
                 Effect.catchTag("Session.NotFoundError", missingSession),
                 Effect.catchTag("Session.MessageDecodeError", failedMessageDecode),
               ),
+          }
+        }),
+      )
+      .handle(
+        "session.diff",
+        Effect.fn(function* (ctx) {
+          return {
+            data: yield* session.diff({ sessionID: ctx.params.sessionID, ...ctx.query }).pipe(
+              Effect.catchTag("Session.NotFoundError", missingSession),
+              Effect.catchTag("Session.MessageNotFoundError", missingMessage),
+              Effect.catchTag(
+                "Session.TurnRangeError",
+                (error) => new InvalidRequestError({ message: error.message, field: error.field }),
+              ),
+              Effect.catchTag("Snapshot.Error", failedSnapshot("diff session turn", ctx.params.sessionID)),
+            ),
           }
         }),
       )
@@ -644,37 +622,6 @@ export const SessionHandler = HttpApiBuilder.group(Api, "server.session", (handl
             messageID: ctx.params.messageID,
             message: `Message not found: ${ctx.params.messageID}`,
           })
-        }),
-      )
-      .handle(
-        "session.messageUpdate",
-        Effect.fn(function* (ctx) {
-          const message = yield* session.updateMessage({ ...ctx.params, content: ctx.payload.content }).pipe(
-            Effect.catchTag("Session.NotFoundError", missingSession),
-            Effect.catchTag(
-              "Session.MessageNotFoundError",
-              (error) =>
-                new MessageNotFoundError({
-                  sessionID: error.sessionID,
-                  messageID: error.messageID,
-                  message: `Message not found: ${error.messageID}`,
-                }),
-            ),
-            Effect.catchTag("Session.BusyError", busySession),
-            Effect.catchTag(
-              "Session.MessageNotAssistantError",
-              () => new InvalidRequestError({ message: "Only assistant messages can be updated", field: "messageID" }),
-            ),
-            Effect.catchTag(
-              "Session.MessageIncompleteError",
-              (error) => new ConflictError({ message: "Assistant message is incomplete", resource: error.messageID }),
-            ),
-            Effect.catchTag(
-              "Session.MessageToolIncompleteError",
-              () => new InvalidRequestError({ message: "Tool content must be completed", field: "content" }),
-            ),
-          )
-          return { data: message }
         }),
       )
   }),

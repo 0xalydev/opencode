@@ -8,8 +8,8 @@
 //   3. starts the stream transport (SDK event subscription), lazily for fresh
 //      local sessions,
 //   4. runs the prompt queue until the footer closes.
-import { SessionMessage } from "@opencode-ai/schema/session-message"
-import type { LocationRef } from "@opencode-ai/client/promise"
+import { SessionMessage } from "@opencode/schema/session-message"
+import type { LocationRef } from "@opencode/client/promise"
 import type { Config } from "../config"
 import { newSessionLocation } from "../config/new-session-location"
 import { loadRunAgents, loadRunCommands, loadRunReferences } from "./catalog.shared"
@@ -22,6 +22,7 @@ import {
 } from "./runtime.boot"
 import { createRuntimeLifecycle } from "./runtime.lifecycle"
 import { cycleVariant, formatModelLabel, resolveVariant } from "./variant.shared"
+import { verbosityPreset } from "./verbosity"
 import type {
   LocalReplayRow,
   MiniHost,
@@ -152,13 +153,12 @@ function formRequestOptions(location: LocationRef | undefined) {
   return {
     headers: {
       "x-opencode-directory": encodeURIComponent(location.directory),
-      ...(location.workspaceID ? { "x-opencode-workspace": location.workspaceID } : {}),
     },
   }
 }
 
 function formAlreadySettled(error: unknown) {
-  return !!error && typeof error === "object" && Reflect.get(error, "_tag") === "FormAlreadySettledError"
+  return !!error && typeof error === "object" && "_tag" in error && error._tag === "FormAlreadySettledError"
 }
 
 const RESIZE_DELAY = 250
@@ -236,7 +236,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
         .find({
           query,
           type: "file",
-          location: { directory: state.location.directory, workspace: state.location.workspaceID },
+          location: { directory: state.location.directory },
         })
         .then((result) => result.data.map((file) => file.path))
         .catch(() => []),
@@ -255,6 +255,10 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
       ? async (change) => {
           const info = await config.update((draft) => {
             if (!draft.mini || typeof draft.mini !== "object") draft.mini = {}
+            if (change.key === "verbosity") {
+              Object.assign(draft.mini, verbosityPreset(change.value))
+              return
+            }
             draft.mini[change.key] = change.value
           })
           configState.current = resolveMiniSettings(info)
@@ -652,7 +656,6 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
         {
           location: {
             directory: state.location.directory,
-            workspace: state.location.workspaceID,
           },
         },
         { signal: attempt.signal },
@@ -793,6 +796,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
         location: state.location,
         sessionID: state.sessionID,
         thinking: thinking(),
+        tools: configState.current.tools === "show",
         replay: input.replay,
         replayLimit: input.replayLimit,
         footer,

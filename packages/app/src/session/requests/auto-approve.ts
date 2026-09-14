@@ -1,6 +1,6 @@
 import { createEffect, onCleanup } from "solid-js"
-import type { PermissionRequest } from "@opencode-ai/client/promise"
-import type { Data } from "@opencode-ai/client/solid"
+import type { PermissionRequest } from "@opencode/client/promise"
+import type { Data } from "@opencode/client/solid"
 import type { ServerSDK } from "@/runtime/server/client"
 import { useSettings } from "@/settings/model"
 
@@ -60,7 +60,7 @@ export function createPermissionAutoApprover(input: { sdk: ServerSDK; data: Data
     const listed = await Promise.all(
       inventory.locations.map((location) =>
         input.sdk.api.permission.request
-          .list({ location: { directory: location.directory, workspace: location.workspaceID } })
+          .list({ location: { directory: location.directory } })
           .then((pending) => {
             if (!state.disposed) pending.data.forEach((request) => approve(request))
             return true
@@ -103,7 +103,7 @@ export function createPermissionAutoApprover(input: { sdk: ServerSDK; data: Data
     ]
     return {
       locations: [
-        ...new Map(locations.map((item) => [`${item.directory}\u0000${item.workspaceID ?? ""}`, item])).values(),
+        ...new Map(locations.map((item) => [item.directory, item])).values(),
       ],
       complete: active !== undefined && synced.every(Boolean),
     }

@@ -3,7 +3,7 @@
 import { $ } from "bun"
 import { mkdir, rm } from "fs/promises"
 import path from "path"
-import { Script } from "@opencode-ai/script"
+import { Script } from "@opencode/script"
 import { createSolidTransformPlugin } from "@opentui/solid/bun-plugin"
 import type { BunPlugin } from "bun"
 import pkg from "../package.json"
@@ -12,7 +12,7 @@ import { verifyArtifact, verifySimulationGraph } from "./verify-artifact"
 import { resolveOpencodePty } from "./opencode-pty"
 
 const dir = path.resolve(import.meta.dirname, "..")
-const binary = "opencode2"
+const binary = "opencode"
 const outdir = path.resolve(
   dir,
   process.argv.find((arg) => arg.startsWith("--outdir="))?.slice("--outdir=".length) ?? "dist",
@@ -111,7 +111,7 @@ export default { path: file, version: ${JSON.stringify(opencodePty.version)}, sh
   const parcelWatcherPlugin: BunPlugin = {
     name: "parcel-watcher-binding",
     setup(build) {
-      build.onLoad({ filter: /filesystem\/watcher-binding\.ts$/ }, () => ({
+      build.onLoad({ filter: /filesystem[/\\]watcher-binding\.ts$/ }, () => ({
         contents: `export default () => require(${JSON.stringify(parcelWatcherPackage)})`,
         loader: "js",
       }))
@@ -149,7 +149,7 @@ export default { path: file, version: ${JSON.stringify(opencodePty.version)}, sh
     },
     define: {
       OPENCODE_VERSION: `'${Script.version}'`,
-      OPENCODE_CLI_NAME: `'${binary}'`,
+      OPENCODE_CLI_NAME: "'opencode'",
       OPENCODE_CHANNEL: `'${Script.channel}'`,
       OPENCODE_ARTIFACT: `'cli'`,
       OPENCODE_LIBC: item.os === "linux" ? `'${item.abi ?? "glibc"}'` : "undefined",
@@ -169,7 +169,7 @@ export default { path: file, version: ${JSON.stringify(opencodePty.version)}, sh
     path.join(outdir, name, "package.json"),
     JSON.stringify(
       {
-        name: `@opencode-ai/${name}`,
+        name: `@opencode/${name}`,
         version: Script.version,
         license: "MIT",
         repository: { type: "git", url: "git+https://github.com/anomalyco/opencode.git" },

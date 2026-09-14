@@ -3,26 +3,26 @@ import fs from "fs/promises"
 import { describe, expect, test } from "bun:test"
 import { Effect, Fiber, Layer, Logger, Schema, Stream } from "effect"
 import { FastCheck } from "effect/testing"
-import { Config } from "@opencode-ai/core/config"
-import { AgentsDirectory, Directory, Document, Event, Info } from "@opencode-ai/schema/config"
-import { ConfigModel } from "@opencode-ai/schema/config/model"
-import { ConfigProvider } from "@opencode-ai/schema/config/provider"
-import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
-import { makeGlobalNode } from "@opencode-ai/util/effect/app-node"
-import { LayerNode } from "@opencode-ai/util/effect/layer-node"
-import { Credential } from "@opencode-ai/core/credential"
-import { ConfigMigrateV1 } from "@opencode-ai/core/v1/config/migrate"
-import { ConfigV1 } from "@opencode-ai/core/v1/config/config"
-import { ConfigNormalize } from "@opencode-ai/core/config/normalize"
-import { Watcher } from "@opencode-ai/core/filesystem/watcher"
-import { Bus } from "@opencode-ai/core/bus"
-import { Global } from "@opencode-ai/util/global"
-import { Location } from "@opencode-ai/core/location"
-import { Project } from "@opencode-ai/core/project"
-import { Provider } from "@opencode-ai/core/provider"
-import { AbsolutePath } from "@opencode-ai/core/schema"
-import { WellKnown } from "@opencode-ai/core/wellknown"
-import { Integration } from "@opencode-ai/schema/integration"
+import { Config } from "@opencode/core/config"
+import { Directory, Document, Event, Info } from "@opencode/schema/config"
+import { ConfigModel } from "@opencode/schema/config/model"
+import { ConfigProvider } from "@opencode/schema/config/provider"
+import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
+import { makeGlobalNode } from "@opencode/util/effect/app-node"
+import { LayerNode } from "@opencode/util/effect/layer-node"
+import { Credential } from "@opencode/core/credential"
+import { ConfigMigrateV1 } from "@opencode/core/v1/config/migrate"
+import { ConfigV1 } from "@opencode/core/v1/config/config"
+import { ConfigNormalize } from "@opencode/core/config/normalize"
+import { Watcher } from "@opencode/core/filesystem/watcher"
+import { Bus } from "@opencode/core/bus"
+import { Global } from "@opencode/util/global"
+import { Location } from "@opencode/core/location"
+import { Project } from "@opencode/core/project"
+import { Provider } from "@opencode/core/provider"
+import { AbsolutePath } from "@opencode/core/schema"
+import { WellKnown } from "@opencode/core/wellknown"
+import { Integration } from "@opencode/schema/integration"
 import { emptyCredentialNode, emptyWellknownNode } from "../fixture/config-nodes"
 import { location } from "../fixture/location"
 import { tmpdir } from "../fixture/tmpdir"
@@ -83,8 +83,6 @@ describe("Config", () => {
         const global = path.join(tmp.path, "global")
         const home = path.join(global, "home")
         const project = path.join(home, "project")
-        const ambient = (entries: readonly { type: string }[]) =>
-          entries.filter((entry) => entry.type === "claude" || entry.type === "agents")
         return Effect.promise(() =>
           Promise.all([
             fs.mkdir(project, { recursive: true }),
@@ -96,7 +94,8 @@ describe("Config", () => {
             Effect.gen(function* () {
               // The fixture is real: with global enabled the walk finds both.
               const config = yield* Config.Service
-              expect(ambient(yield* config.entries()).length).toBe(2)
+              const compatibility = yield* config.compatibility!()
+              expect([...compatibility.claude, ...compatibility.agents]).toHaveLength(2)
             }).pipe(Effect.provide(testLayer(project, global))),
           ),
           Effect.andThen(
@@ -105,7 +104,7 @@ describe("Config", () => {
             // project walk enabled.
             Effect.gen(function* () {
               const config = yield* Config.Service
-              expect(ambient(yield* config.entries())).toEqual([])
+              expect(yield* config.compatibility!()).toEqual({ claude: [], agents: [] })
               const watcher = yield* Watcher.Test
               expect(
                 (yield* watcher.subscriptions()).filter((watch) => watch.type === "entries" && watch.path === home),
@@ -431,7 +430,6 @@ describe("Config", () => {
         info: new Info({ model: selection("openrouter/openai/gpt-5") }),
       }),
       new Directory({ type: "directory", path: AbsolutePath.make("/skills") }),
-      new AgentsDirectory({ type: "agents", path: AbsolutePath.make("/agents") }),
       new Document({ type: "document", info: new Info({}) }),
       new Document({
         type: "document",
@@ -912,16 +910,12 @@ describe("Config", () => {
               fs.mkdir(project, { recursive: true }),
             ]),
           )
-          const entries = yield* Config.Service.use((config) => config.entries()).pipe(
+          const compatibility = yield* Config.Service.use((config) => config.compatibility!()).pipe(
             Effect.provide(testLayer(project, global)),
           )
 
-          expect(entries.filter((entry) => entry.type === "claude").map((entry) => entry.path)).toEqual([
-            AbsolutePath.make(path.join(home, ".claude")),
-          ])
-          expect(entries.filter((entry) => entry.type === "agents").map((entry) => entry.path)).toEqual([
-            AbsolutePath.make(path.join(home, ".agents")),
-          ])
+          expect(compatibility.claude).toEqual([AbsolutePath.make(path.join(home, ".claude"))])
+          expect(compatibility.agents).toEqual([AbsolutePath.make(path.join(home, ".agents"))])
         }),
       ),
     ),
@@ -1171,6 +1165,7 @@ describe("Config", () => {
                       disabled: false,
                       codemode: false,
                       timeout: { catalog: 10000 },
+                      protocol: "legacy",
                     },
                     remote: {
                       type: "remote",
@@ -1180,6 +1175,7 @@ describe("Config", () => {
                       disabled: true,
                       codemode: false,
                       timeout: { startup: 15000 },
+                      protocol: "2026-07-28",
                     },
                   },
                 },
@@ -1254,6 +1250,7 @@ describe("Config", () => {
                   disabled: false,
                   codemode: false,
                   timeout: { catalog: 10000 },
+                  protocol: "legacy",
                 },
                 remote: {
                   type: "remote",
@@ -1263,6 +1260,7 @@ describe("Config", () => {
                   disabled: true,
                   codemode: false,
                   timeout: { startup: 15000 },
+                  protocol: "2026-07-28",
                 },
               },
             })
@@ -1342,6 +1340,7 @@ describe("Config", () => {
                   bash: "ask",
                   edit: { "*.md": "allow", "*": "deny" },
                   question: "deny",
+                  webfetch: { "*": "ask", "https://en.wikipedia.org/*": "allow" },
                 },
                 agent: {
                   reviewer: {
@@ -1420,6 +1419,8 @@ describe("Config", () => {
               { action: "edit", resource: "*.md", effect: "allow" },
               { action: "edit", resource: "*", effect: "deny" },
               { action: "question", resource: "*", effect: "deny" },
+              { action: "webfetch", resource: "*", effect: "ask" },
+              { action: "webfetch", resource: "https://en.wikipedia.org/*", effect: "allow" },
             ])
             expect(documents[0]?.info.agents?.reviewer).toMatchObject({
               system: "Review changes.",
@@ -1557,18 +1558,19 @@ describe("Config", () => {
             const config = yield* Config.Service
             const entries = (yield* config.entries()).filter((entry) => !entry.path || inFixture(tmp.path, entry.path))
             const documents = entries.filter((entry) => entry.type === "document")
+            const compatibility = yield* config.compatibility!()
 
             expect(entries.filter((entry) => entry.type === "directory").map((entry) => entry.path)).toEqual([
               AbsolutePath.make(global),
               AbsolutePath.make(path.join(root, ".opencode")),
               AbsolutePath.make(path.join(directory, ".opencode")),
             ])
-            expect(entries.filter((entry) => entry.type === "agents").map((entry) => entry.path)).toEqual([
+            expect(compatibility.agents.filter((path) => inFixture(tmp.path, path))).toEqual([
               AbsolutePath.make(globalAgents),
               AbsolutePath.make(path.join(root, ".agents")),
               AbsolutePath.make(path.join(directory, ".agents")),
             ])
-            expect(entries.filter((entry) => entry.type === "claude").map((entry) => entry.path)).toEqual([
+            expect(compatibility.claude.filter((path) => inFixture(tmp.path, path))).toEqual([
               AbsolutePath.make(globalClaude),
               AbsolutePath.make(path.join(root, ".claude")),
               AbsolutePath.make(path.join(directory, ".claude")),
@@ -1583,12 +1585,6 @@ describe("Config", () => {
               "directory-dot",
             ])
             expect(entries.map((entry) => (entry.type === "document" ? entry.info.$schema : entry.path))).toEqual([
-              AbsolutePath.make(globalClaude),
-              AbsolutePath.make(path.join(root, ".claude")),
-              AbsolutePath.make(path.join(directory, ".claude")),
-              AbsolutePath.make(globalAgents),
-              AbsolutePath.make(path.join(root, ".agents")),
-              AbsolutePath.make(path.join(directory, ".agents")),
               "global",
               AbsolutePath.make(global),
               "outside",
