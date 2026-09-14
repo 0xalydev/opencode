@@ -44,7 +44,7 @@ export type AutocompleteOption = {
   path?: string
   absolute?: string
   destructive?: { id: string; confirm: string; run: () => void }
-  kind?: "skill" | "agent" | "file" | "reference"
+  kind?: "skill" | "agent" | "reference"
   queueable?: boolean
 }
 
@@ -376,7 +376,6 @@ export function Autocomplete(props: {
           const { filename, part } = createFilePart(item, path.join(result.location.directory, item.path), lineRange)
           return {
             display: Locale.truncateMiddle(filename, width),
-            kind: "file",
             value: filename,
             isDirectory: item.type === "directory",
             path: item.path,
@@ -859,7 +858,6 @@ export function Autocomplete(props: {
   const labels = {
     skill: "skill",
     agent: "agent",
-    file: "file",
     reference: "reference",
   }
 
