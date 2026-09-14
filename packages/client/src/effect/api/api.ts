@@ -35,7 +35,7 @@ import type { Pty } from "@opencode/schema/pty"
 import type { PtyTicket } from "@opencode/schema/pty-ticket"
 import type { Reference } from "@opencode/schema/reference"
 import type { Worktree } from "@opencode/schema/worktree"
-import type { Preferences } from "@opencode/schema/preferences"
+import type { Settings } from "@opencode/schema/settings"
 import type { Vcs } from "@opencode/schema/vcs"
 import type { WebSearch } from "@opencode/schema/websearch"
 import type { Config } from "@opencode/schema/config"
@@ -2202,14 +2202,14 @@ export interface WorktreeApi<E = never> {
   readonly refresh: WorktreeRefreshOperation<E>
 }
 
-export type SettingsListOutput = ReadonlyArray<Preferences.Entry>
+export type SettingsListOutput = ReadonlyArray<Settings.Entry>
 export type SettingsListOperation<E = never> = () => Effect.Effect<SettingsListOutput, E>
 
 export type SettingsGetInput = { readonly kind: string; readonly id: string }
-export type SettingsGetOutput = Preferences.Entry | null
+export type SettingsGetOutput = Settings.Entry | null
 export type SettingsGetOperation<E = never> = (input: SettingsGetInput) => Effect.Effect<SettingsGetOutput, E>
 
-export type SettingsSetInput = { readonly kind: string; readonly id: string; readonly value: Preferences.Value }
+export type SettingsSetInput = { readonly kind: string; readonly id: string; readonly value: Settings.Value }
 export type SettingsSetOutput = void
 export type SettingsSetOperation<E = never> = (input: SettingsSetInput) => Effect.Effect<SettingsSetOutput, E>
 

@@ -1,35 +1,35 @@
-export * as Preferences from "./preferences.js"
-export { Target, Value, Entry, Event } from "@opencode/schema/preferences"
+export * as Settings from "./settings.js"
+export { Target, Value, Entry, Event } from "@opencode/schema/settings"
 
-import { Preferences } from "@opencode/schema/preferences"
+import { Settings } from "@opencode/schema/settings"
 import { Skill } from "@opencode/schema/skill"
 import { makeGlobalNode } from "@opencode/util/effect/app-node"
 import { Context, Effect, Layer, Option, Schema } from "effect"
 import { Bus } from "./bus.js"
 import { KV } from "./kv.js"
 
-const prefix = "preferences:values:"
-const key = (target: Preferences.Target) => `${prefix}${JSON.stringify([target.kind, target.id])}`
-const decode = Schema.decodeUnknownOption(Preferences.Entry)
+const prefix = "settings:values:"
+const key = (target: Settings.Target) => `${prefix}${JSON.stringify([target.kind, target.id])}`
+const decode = Schema.decodeUnknownOption(Settings.Entry)
 
-const definitions = new Map<string, Schema.Codec<Preferences.Value, Preferences.Value>>([
+const definitions = new Map<string, Schema.Codec<Settings.Value, Settings.Value>>([
   ["skill.activation", Skill.Activation],
 ])
 
-export class InvalidValueError extends Schema.TaggedError<InvalidValueError>()("Preferences.InvalidValue", {
-  target: Preferences.Target,
+export class InvalidValueError extends Schema.TaggedError<InvalidValueError>()("Settings.InvalidValue", {
+  target: Settings.Target,
   message: Schema.String,
 }) {}
 
 /** Global value overrides. Consumers own defaults, inventory, and the behavior each value controls. */
 export interface Interface {
-  readonly get: (target: Preferences.Target) => Effect.Effect<Preferences.Value | undefined>
-  readonly list: () => Effect.Effect<Preferences.Entry[]>
-  readonly set: (target: Preferences.Target, value: Preferences.Value) => Effect.Effect<void, InvalidValueError>
-  readonly reset: (target: Preferences.Target) => Effect.Effect<void>
+  readonly get: (target: Settings.Target) => Effect.Effect<Settings.Value | undefined>
+  readonly list: () => Effect.Effect<Settings.Entry[]>
+  readonly set: (target: Settings.Target, value: Settings.Value) => Effect.Effect<void, InvalidValueError>
+  readonly reset: (target: Settings.Target) => Effect.Effect<void>
 }
 
-export class Service extends Context.Service<Service, Interface>()("@opencode/Preferences") {}
+export class Service extends Context.Service<Service, Interface>()("@opencode/Settings") {}
 
 export const node = makeGlobalNode({
   service: Service,
@@ -47,11 +47,11 @@ export const node = makeGlobalNode({
         })
 
       return Service.of({
-        get: Effect.fn("Preferences.get")(function* (target) {
+        get: Effect.fn("Settings.get")(function* (target) {
           return Option.getOrUndefined(read(yield* kv.get(key(target))))?.value
         }),
-        list: Effect.fn("Preferences.list")(function* () {
-          const entries: Preferences.Entry[] = []
+        list: Effect.fn("Settings.list")(function* () {
+          const entries: Settings.Entry[] = []
           let after: string | undefined
           do {
             const page = yield* kv.scan({ prefix, after, limit: 1000 })
@@ -60,10 +60,10 @@ export const node = makeGlobalNode({
           } while (after !== undefined)
           return entries
         }),
-        set: Effect.fn("Preferences.set")(function* (target, value) {
+        set: Effect.fn("Settings.set")(function* (target, value) {
           const schema = definitions.get(target.kind)
           if (!schema)
-            return yield* new InvalidValueError({ target, message: `Unknown preference kind: ${target.kind}` })
+            return yield* new InvalidValueError({ target, message: `Unknown setting kind: ${target.kind}` })
           const decoded = yield* Schema.decodeUnknownEffect(schema)(value).pipe(
             Effect.mapError(
               (error) =>
@@ -71,11 +71,11 @@ export const node = makeGlobalNode({
             ),
           )
           yield* kv.set(key(target), { target, value: decoded })
-          yield* bus.publish(Preferences.Event.Updated, { target }, { global: true })
+          yield* bus.publish(Settings.Event.Updated, { target }, { global: true })
         }),
-        reset: Effect.fn("Preferences.reset")(function* (target) {
+        reset: Effect.fn("Settings.reset")(function* (target) {
           yield* kv.remove(key(target))
-          yield* bus.publish(Preferences.Event.Updated, { target }, { global: true })
+          yield* bus.publish(Settings.Event.Updated, { target }, { global: true })
         }),
       })
     }),

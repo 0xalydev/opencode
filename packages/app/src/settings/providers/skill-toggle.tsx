@@ -11,7 +11,7 @@ export function SkillToggle(props: { id: string; name: string }) {
   const server = useServerSDK()
   const data = useData()
   const enabled = () =>
-    !data.preferences
+    !data.settings
       .list()
       ?.some(
         (entry) =>
@@ -24,8 +24,8 @@ export function SkillToggle(props: { id: string; name: string }) {
         id: props.id,
         value: checked ? "enabled" : "disabled",
       })
-      data.preferences.invalidate()
-      await data.preferences.sync()
+      data.settings.invalidate()
+      await data.settings.sync()
     },
     onError: () =>
       showToast({
@@ -37,7 +37,7 @@ export function SkillToggle(props: { id: string; name: string }) {
 
   return (
     <div class="flex h-6 shrink-0 items-center gap-3">
-      <Show when={data.preferences.list() !== undefined}>
+      <Show when={data.settings.list() !== undefined}>
         <span class="text-13-regular text-v2-text-text-muted">
           {enabled()
             ? language.t("settings.extensions.skills.enabled")
@@ -47,7 +47,7 @@ export function SkillToggle(props: { id: string; name: string }) {
       <Switch
         checked={enabled()}
         disabled={
-          data.preferences.list() === undefined || server.connection.status() !== "connected" || update.isPending
+          data.settings.list() === undefined || server.connection.status() !== "connected" || update.isPending
         }
         hideLabel
         onChange={(checked) => {

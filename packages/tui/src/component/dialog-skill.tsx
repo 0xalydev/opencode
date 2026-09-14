@@ -133,10 +133,10 @@ export function DialogSkillToggle(props: { location?: LocationRef }) {
       await data.location.skill.sync(props.location).catch(setLoadError)
     },
   )
-  const preferences = createMemo(
+  const settings = createMemo(
     () =>
       new Map(
-        (data.preferences.list() ?? [])
+        (data.settings.list() ?? [])
           .filter((entry) => entry.target.kind === "skill.activation")
           .map((entry) => [entry.target.id, entry.value]),
       ),
@@ -150,8 +150,8 @@ export function DialogSkillToggle(props: { location?: LocationRef }) {
       value === undefined ? client.api.settings.reset(target) : client.api.settings.set({ ...target, value })
     )
       .then(async () => {
-        data.preferences.invalidate()
-        await data.preferences.sync()
+        data.settings.invalidate()
+        await data.settings.sync()
       })
       .catch((error) => toast.show({ title: "Could not update skill", message: errorMessage(error), variant: "error" }))
       .finally(() => setPending(undefined))
@@ -162,7 +162,7 @@ export function DialogSkillToggle(props: { location?: LocationRef }) {
     return (data.location.skill.list(props.location) ?? [])
       .toSorted((a, b) => a.name.localeCompare(b.name))
       .map((skill) => {
-        const enabled = preferences().get(skill.id) !== "disabled"
+        const enabled = settings().get(skill.id) !== "disabled"
         return {
           title: skill.name,
           value: skill.id,
@@ -199,14 +199,14 @@ export function DialogSkillToggle(props: { location?: LocationRef }) {
       footerHints={[
         {
           title: "enter",
-          label: preferences().get(select()?.selected?.value ?? "") === "disabled" ? "enable" : "disable",
+          label: settings().get(select()?.selected?.value ?? "") === "disabled" ? "enable" : "disable",
         },
         { title: "ctrl+r", label: "reset to default" },
       ]}
       bindings={[
         {
           bind: "ctrl+r",
-          title: "Reset skill preference",
+          title: "Reset skill setting",
           run: () => {
             const id = select()?.selected?.value
             if (id) void change(id)

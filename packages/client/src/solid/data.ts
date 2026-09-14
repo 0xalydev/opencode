@@ -20,7 +20,7 @@ import type {
   PermissionSavedInfo,
   PermissionRequest,
   PermissionReplyInput,
-  PreferencesEntry,
+  SettingsEntry,
   Project,
   ProviderInfo,
   ReferenceInfo,
@@ -105,7 +105,7 @@ type LocationData = {
 }
 
 type Store = {
-  preferences?: PreferencesEntry[]
+  settings?: SettingsEntry[]
   session: {
     info: Record<string, SessionInfo>
     // Family index keyed by a family's root (or furthest-known-ancestor when the
@@ -1186,9 +1186,9 @@ export function createData(config: CreateDataInput) {
       return
     }
 
-    if (event.type === "preferences.updated") {
-      result.preferences.invalidate()
-      refresh(() => result.preferences.sync())
+    if (event.type === "settings.updated") {
+      result.settings.invalidate()
+      refresh(() => result.settings.sync())
       return
     }
 
@@ -1321,13 +1321,13 @@ export function createData(config: CreateDataInput) {
   const result = {
     on: config.event.on,
     listen: config.event.listen,
-    preferences: {
-      list: () => store.preferences,
+    settings: {
+      list: () => store.settings,
       sync: () =>
-        sync.run("preferences", async () => {
-          setStore("preferences", await api().settings.list())
+        sync.run("settings", async () => {
+          setStore("settings", await api().settings.list())
         }),
-      invalidate: () => sync.invalidate("preferences"),
+      invalidate: () => sync.invalidate("settings"),
     },
     session: {
       list() {
@@ -1899,12 +1899,12 @@ export function createData(config: CreateDataInput) {
         list: skills.list,
         invalidate: skills.invalidate,
         async sync(location?: LocationRef) {
-          await Promise.all([skills.sync(location), result.preferences.sync()])
+          await Promise.all([skills.sync(location), result.settings.sync()])
         },
         available(location?: LocationRef) {
-          if (store.preferences === undefined) return undefined
+          if (store.settings === undefined) return undefined
           const disabled = new Set(
-            store.preferences
+            store.settings
               .filter((entry) => entry.target.kind === "skill.activation" && entry.value === "disabled")
               .map((entry) => entry.target.id),
           )

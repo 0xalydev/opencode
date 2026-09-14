@@ -50,7 +50,7 @@ describe("acp service prompt routing and usage", () => {
     expect(fixture.requests.some((request) => request.path === "/api/session/ses_routes/prompt")).toBe(false)
   })
 
-  test("refreshes skill activation before routing prompts even without a preference event", async () => {
+  test("refreshes skill activation before routing prompts even without a setting event", async () => {
     let disabled = true
     await using fixture = makeACPFixture({
       fetch(request, context) {

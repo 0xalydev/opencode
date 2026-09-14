@@ -26,7 +26,7 @@ test("resets the initially highlighted skill and shows its current action", asyn
     expect(frame).toContain("enter enable")
     fixture.app.mockInput.pressKey("r", { ctrl: true })
     await fixture.app.waitForFrame((frame) => frame.includes("enter disable") && !frame.includes("Saving"))
-    expect(fixture.state.preference).toBeUndefined()
+    expect(fixture.state.setting).toBeUndefined()
     expect(fixture.state.writes).toEqual(["DELETE"])
   } finally {
     fixture.app.renderer.destroy()
@@ -42,13 +42,13 @@ test("toggles, resets, and selects available skills", async () => {
     await fixture.app.mockInput.typeText("effect")
     fixture.app.mockInput.pressEnter()
     await fixture.app.waitForFrame((frame) => frame.includes("Effect") && frame.includes("Disabled ○"))
-    expect(fixture.state.preference).toBe("disabled")
+    expect(fixture.state.setting).toBe("disabled")
 
     fixture.app.mockInput.pressEnter()
     await fixture.app.waitForFrame((frame) => frame.includes("Effect") && frame.includes("Enabled ✓"))
-    expect(fixture.state.preference).toBe("enabled")
+    expect(fixture.state.setting).toBe("enabled")
     fixture.app.mockInput.pressKey("r", { ctrl: true })
-    await fixture.app.waitFor(() => fixture.state.preference === undefined)
+    await fixture.app.waitFor(() => fixture.state.setting === undefined)
     await fixture.app.waitForFrame((frame) => frame.includes("Enabled ✓") && !frame.includes("Saving"))
 
     await fixture.app.mockInput.typeText("-no-match")
@@ -84,7 +84,7 @@ test("keeps the skill state and dialog usable after a failed save", async () => 
     fixture.app.mockInput.pressEnter()
     const frame = await fixture.app.waitForFrame((frame) => frame.includes("Could not update skill"))
     expect(frame).toContain("Enabled ✓")
-    expect(fixture.state.preference).toBeUndefined()
+    expect(fixture.state.setting).toBeUndefined()
     fixture.state.fail = false
     fixture.app.mockInput.pressEnter()
     await fixture.app.waitForFrame((frame) => frame.includes("Effect") && frame.includes("Disabled ○"))
@@ -93,10 +93,10 @@ test("keeps the skill state and dialog usable after a failed save", async () => 
   }
 })
 
-async function renderSkills(preference?: Skill.Activation) {
+async function renderSkills(setting?: Skill.Activation) {
   const events = createEventStream()
   const state = {
-    preference,
+    setting,
     writes: [] as string[],
     fail: false,
     selected: "",
@@ -112,12 +112,12 @@ async function renderSkills(preference?: Skill.Activation) {
   const calls = createFetch(async (url, request) => {
     if (url.pathname === "/api/settings")
       return json(
-        state.preference ? [{ target: { kind: "skill.activation", id: "effect" }, value: state.preference }] : [],
+        state.setting ? [{ target: { kind: "skill.activation", id: "effect" }, value: state.setting }] : [],
       )
     if (url.pathname === "/api/settings/skill.activation/effect") {
       if (state.fail) return json({ message: "Save failed" }, { status: 500 })
       state.writes.push(request.method)
-      state.preference =
+      state.setting =
         request.method === "DELETE"
           ? undefined
           : Schema.decodeUnknownSync(Schema.Struct({ value: Skill.Activation }))(await request.json()).value

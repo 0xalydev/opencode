@@ -8,7 +8,7 @@ import type { Agent } from "@opencode/schema/agent"
 import { Skill } from "@opencode/schema/skill"
 import { Bus } from "./bus.js"
 import { Permission } from "./permission.js"
-import { Preferences } from "./preferences.js"
+import { Settings } from "./settings.js"
 import { State } from "./state.js"
 
 export const DirectorySource = Skill.DirectorySource
@@ -98,7 +98,7 @@ const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const bus = yield* Bus.Service
-    const preferences = yield* Preferences.Service
+    const settings = yield* Settings.Service
 
     const state = State.create<Data, Editor>({
       name: "skill",
@@ -128,7 +128,7 @@ const layer = Layer.effect(
       get: Effect.fn("Skill.get")(function* (id) {
         const skill = state.get().skills.get(id)
         if (!skill) return undefined
-        if ((yield* preferences.get({ kind: "skill.activation", id })) === "disabled")
+        if ((yield* settings.get({ kind: "skill.activation", id })) === "disabled")
           return yield* new DisabledError({ id })
         return skill
       }),
@@ -142,5 +142,5 @@ const layer = Layer.effect(
 export const node = makeLocationNode({
   service: Service,
   layer,
-  deps: [Bus.node, Preferences.node],
+  deps: [Bus.node, Settings.node],
 })

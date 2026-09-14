@@ -332,7 +332,7 @@ export type RpcOutput = { output?: any }
 
 export type PermissionReply = "once" | "always" | "reject"
 
-export type PreferencesTarget = { kind: string; id: string }
+export type SettingsTarget = { kind: string; id: string }
 
 export type Pty = {
   id: string
@@ -408,7 +408,7 @@ export type WorktreeDirectory = { directory: string; strategy?: string }
 
 export type WorktreeInfo = { directory: string }
 
-export type PreferencesValue = JsonValue
+export type SettingsValue = JsonValue
 
 export type VcsBranch = { current?: string; default?: string }
 
@@ -1508,13 +1508,13 @@ export type PermissionReplied = {
   data: { sessionID: string; requestID: string; reply: PermissionReply }
 }
 
-export type PreferencesUpdated = {
+export type SettingsUpdated = {
   id: string
   created: number
   metadata?: { [x: string]: any }
-  type: "preferences.updated"
+  type: "settings.updated"
   location?: LocationRef
-  data: { target: PreferencesTarget }
+  data: { target: SettingsTarget }
 }
 
 export type PtyCreated = {
@@ -1629,7 +1629,7 @@ export type ReferenceSource = ReferenceLocalSource | ReferenceGitSource
 
 export type WorktreeList = Array<WorktreeDirectory>
 
-export type PreferencesEntry = { target: PreferencesTarget; value: PreferencesValue }
+export type SettingsEntry = { target: SettingsTarget; value: SettingsValue }
 
 export type VcsInfo = { branch: VcsBranch }
 
@@ -2375,7 +2375,7 @@ export type V2Event =
   | CommandUpdated
   | ConfigUpdated
   | SkillUpdated
-  | PreferencesUpdated
+  | SettingsUpdated
   | PtyCreated
   | PtyUpdated
   | PtyExited
@@ -6154,14 +6154,14 @@ export type WorktreeRefreshInput = {
 
 export type WorktreeRefreshOutput = void
 
-export type SettingsListOutput = Array<PreferencesEntry>
+export type SettingsListOutput = Array<SettingsEntry>
 
 export type SettingsGetInput = {
   readonly kind: { readonly kind: string; readonly id: string }["kind"]
   readonly id: { readonly kind: string; readonly id: string }["id"]
 }
 
-export type SettingsGetOutput = PreferencesEntry | null
+export type SettingsGetOutput = SettingsEntry | null
 
 export type SettingsSetInput = {
   readonly kind: { readonly kind: string; readonly id: string }["kind"]

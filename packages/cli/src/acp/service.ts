@@ -140,12 +140,12 @@ export function make(input: { readonly client: OpenCodeClient; readonly connecti
   }
 
   const refreshSkills = async (state: Attached, initial = false) => {
-    const [registered, preferences] = await Promise.all([
+    const [registered, settings] = await Promise.all([
       catalog(state.cwd),
       input.client.settings.list({ signal: state.abort.signal }),
     ])
     const disabled = new Set(
-      preferences
+      settings
         .filter((entry) => entry.target.kind === "skill.activation" && entry.value === "disabled")
         .map((entry) => entry.target.id),
     )
@@ -174,18 +174,18 @@ export function make(input: { readonly client: OpenCodeClient; readonly connecti
     const signal = input.connection.signal
       ? AbortSignal.any([state.abort.signal, input.connection.signal])
       : state.abort.signal
-    // Subscribe before reading preferences so changes during attachment are also observed.
+    // Subscribe before reading settings so changes during attachment are also observed.
     void (async () => {
       for await (const event of input.client.event.subscribe({ signal })) {
         if (
           event.type !== "server.connected" &&
-          !(event.type === "preferences.updated" && event.data.target.kind === "skill.activation")
+          !(event.type === "settings.updated" && event.data.target.kind === "skill.activation")
         )
           continue
         await refreshSkills(state, event.type === "server.connected")
         ready.resolve()
       }
-    })().then(() => ready.reject(new Error("event stream disconnected before loading skill preferences")), ready.reject)
+    })().then(() => ready.reject(new Error("event stream disconnected before loading skill settings")), ready.reject)
     return ready.promise
   }
 

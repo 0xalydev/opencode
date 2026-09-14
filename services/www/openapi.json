@@ -8808,7 +8808,7 @@
             }
           }
         },
-        "description": "Retrieve all registered skill definitions. Activation overrides are available through the preferences API.",
+        "description": "Retrieve all registered skill definitions. Activation overrides are available through the settings API.",
         "summary": "List skills"
       }
     },
@@ -11732,7 +11732,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Preferences.Entry"
+                    "$ref": "#/components/schemas/Settings.Entry"
                   }
                 }
               }
@@ -11759,8 +11759,8 @@
             }
           }
         },
-        "description": "List explicit global preference values. Domains own their value schemas, defaults, and behavior.",
-        "summary": "List preference overrides"
+        "description": "List explicit global setting values. Domains own their value schemas, defaults, and behavior.",
+        "summary": "List setting overrides"
       }
     },
     "/api/settings/{kind}/{id}": {
@@ -11774,7 +11774,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Registered preference kind, such as skill.activation. Each kind defines its value schema."
+              "description": "Registered setting kind, such as skill.activation. Each kind defines its value schema."
             },
             "required": true
           },
@@ -11784,7 +11784,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Subject of the preference. Use global for a preference without an entity-specific subject."
+              "description": "Subject of the setting. Use global for a setting without an entity-specific subject."
             },
             "required": true
           }
@@ -11798,7 +11798,7 @@
                 "schema": {
                   "anyOf": [
                     {
-                      "$ref": "#/components/schemas/Preferences.Entry"
+                      "$ref": "#/components/schemas/Settings.Entry"
                     },
                     {
                       "type": "null"
@@ -11829,8 +11829,8 @@
             }
           }
         },
-        "description": "Read one explicit preference override, or null when the domain default applies. An entry whose value is null is distinct from a missing override.",
-        "summary": "Get preference override"
+        "description": "Read one explicit setting override, or null when the domain default applies. An entry whose value is null is distinct from a missing override.",
+        "summary": "Get setting override"
       },
       "put": {
         "tags": ["settings"],
@@ -11842,7 +11842,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Registered preference kind, such as skill.activation. Each kind defines its value schema."
+              "description": "Registered setting kind, such as skill.activation. Each kind defines its value schema."
             },
             "required": true
           },
@@ -11852,7 +11852,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Subject of the preference. Use global for a preference without an entity-specific subject."
+              "description": "Subject of the setting. Use global for a setting without an entity-specific subject."
             },
             "required": true
           }
@@ -11883,8 +11883,8 @@
             }
           }
         },
-        "description": "Validate a value against its registered preference kind and persist it across all projects and sessions on this server.",
-        "summary": "Set preference override",
+        "description": "Validate a value against its registered setting kind and persist it across all projects and sessions on this server.",
+        "summary": "Set setting override",
         "requestBody": {
           "content": {
             "application/json": {
@@ -11892,7 +11892,7 @@
                 "type": "object",
                 "properties": {
                   "value": {
-                    "$ref": "#/components/schemas/Preferences.Value"
+                    "$ref": "#/components/schemas/Settings.Value"
                   }
                 },
                 "required": ["value"],
@@ -11913,7 +11913,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Registered preference kind, such as skill.activation. Each kind defines its value schema."
+              "description": "Registered setting kind, such as skill.activation. Each kind defines its value schema."
             },
             "required": true
           },
@@ -11923,7 +11923,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "Subject of the preference. Use global for a preference without an entity-specific subject."
+              "description": "Subject of the setting. Use global for a setting without an entity-specific subject."
             },
             "required": true
           }
@@ -11954,8 +11954,8 @@
             }
           }
         },
-        "description": "Remove the explicit preference so the target follows its domain default again.",
-        "summary": "Reset preference override"
+        "description": "Remove the explicit setting so the target follows its domain default again.",
+        "summary": "Reset setting override"
       }
     },
     "/api/vcs": {
@@ -16645,37 +16645,6 @@
           }
         ]
       },
-      "Preferences.Entry": {
-        "type": "object",
-        "properties": {
-          "target": {
-            "$ref": "#/components/schemas/Preferences.Target"
-          },
-          "value": {
-            "$ref": "#/components/schemas/Preferences.Value"
-          }
-        },
-        "required": ["target", "value"],
-        "additionalProperties": false
-      },
-      "Preferences.Target": {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Registered preference kind, such as skill.activation. Each kind defines its value schema."
-          },
-          "id": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Subject of the preference. Use global for a preference without an entity-specific subject."
-          }
-        },
-        "required": ["kind", "id"],
-        "additionalProperties": false
-      },
-      "Preferences.Value": {},
       "Project": {
         "type": "object",
         "properties": {
@@ -18968,6 +18937,37 @@
         "required": ["data", "cursor"],
         "additionalProperties": false
       },
+      "Settings.Entry": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "$ref": "#/components/schemas/Settings.Target"
+          },
+          "value": {
+            "$ref": "#/components/schemas/Settings.Value"
+          }
+        },
+        "required": ["target", "value"],
+        "additionalProperties": false
+      },
+      "Settings.Target": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Registered setting kind, such as skill.activation. Each kind defines its value schema."
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Subject of the setting. Use global for a setting without an entity-specific subject."
+          }
+        },
+        "required": ["kind", "id"],
+        "additionalProperties": false
+      },
+      "Settings.Value": {},
       "Shell.Info": {
         "type": "object",
         "properties": {

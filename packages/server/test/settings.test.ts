@@ -8,10 +8,10 @@ import { it } from "../../core/test/lib/effect"
 import { ServerFetch } from "../src/fetch"
 
 it.live(
-  "global preferences survive restart and block every new explicit skill admission",
+  "global settings survive restart and block every new explicit skill admission",
   () =>
     Effect.gen(function* () {
-      const tmp = yield* tmpdirScoped("opencode-preferences-")
+      const tmp = yield* tmpdirScoped("opencode-settings-")
       const config = path.join(tmp.path, "config")
       const first = { directory: path.join(tmp.path, "first") }
       const second = { directory: path.join(tmp.path, "second") }

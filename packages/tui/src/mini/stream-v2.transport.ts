@@ -383,7 +383,7 @@ const catalogEvents = new Set([
   "agent.updated",
   "command.updated",
   "skill.updated",
-  "preferences.updated",
+  "settings.updated",
   "reference.updated",
 ])
 

@@ -95,13 +95,13 @@ export async function loadRunCommands(
   ref: LocationRef,
   signal?: AbortSignal,
 ): Promise<RunCommand[]> {
-  const [commands, skills, preferences] = await Promise.all([
+  const [commands, skills, settings] = await Promise.all([
     sdk.command.list(location(ref), ...requestOptions(signal)),
     sdk.skill.list(location(ref), ...requestOptions(signal)),
     sdk.settings.list(...requestOptions(signal)),
   ])
   const disabled = new Set(
-    preferences
+    settings
       .filter((entry) => entry.target.kind === "skill.activation" && entry.value === "disabled")
       .map((entry) => entry.target.id),
   )

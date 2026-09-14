@@ -16,7 +16,7 @@ export const SkillGroup = HttpApiGroup.make("server.skill")
           identifier: "skill.list",
           summary: "List skills",
           description:
-            "Retrieve all registered skill definitions. Activation overrides are available through the preferences API.",
+            "Retrieve all registered skill definitions. Activation overrides are available through the settings API.",
         }),
       ),
   )

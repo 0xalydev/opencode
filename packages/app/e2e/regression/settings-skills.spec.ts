@@ -1,12 +1,12 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
-import { Preferences } from "@opencode/schema/preferences"
+import { Settings } from "@opencode/schema/settings"
 import { base64Encode } from "@opencode/util/encode"
 import { Schema } from "effect"
 import { mockOpenCodeServer } from "../utils/mock-server"
 import { installSseTransport } from "../utils/sse-transport"
 
-const directory = "/repo/skill-preferences"
-const sessionID = "ses_skill_preferences"
+const directory = "/repo/skill-settings"
+const sessionID = "ses_skill_settings"
 const server = `http://${process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"}:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`
 const shared = { id: "show-me", name: "Show Me" }
 const local = { id: "local-review", name: "مراجعة Local Review" }
@@ -45,7 +45,7 @@ for (const direction of ["ltr", "rtl"]) {
 
     await page.keyboard.press("Control+,")
     await settings.getByRole("tab", { name: "Projects", exact: true }).click()
-    await settings.getByText("Skill preferences", { exact: true }).click()
+    await settings.getByText("Skill settings", { exact: true }).click()
     const project = page.getByRole("dialog")
     await project.getByRole("tab", { name: "Extensions", exact: true }).click()
     await project.getByRole("tab", { name: "Skills", exact: true }).click()
@@ -102,7 +102,7 @@ test("skill switches retain the saved state after a failed write and allow retry
   expect(fixture.writes).toHaveLength(1)
 })
 
-test("external preference changes update skill settings and suggestions without reloading definitions", async ({
+test("external setting changes update skill settings and suggestions without reloading definitions", async ({
   page,
 }) => {
   const fixture = await setup(page)
@@ -112,11 +112,11 @@ test("external preference changes update skill settings and suggestions without 
   await settings.getByRole("tab", { name: "Skills", exact: true }).click()
   await expect(switchInput(settings, shared.name)).toBeChecked()
   const reads = fixture.state.skillReads
-  fixture.state.preferences = [{ target: { kind: "skill.activation", id: shared.id }, value: "disabled" }]
+  fixture.state.settings = [{ target: { kind: "skill.activation", id: shared.id }, value: "disabled" }]
   await fixture.transport.send({
     id: "evt_skill_disabled",
     created: 1700000001000,
-    type: "preferences.updated",
+    type: "settings.updated",
     data: { target: { kind: "skill.activation", id: shared.id } },
   })
   await expect(switchInput(settings, shared.name)).not.toBeChecked()
@@ -142,22 +142,22 @@ function switchControl(scope: Locator, name: string) {
 
 async function setup(page: Page) {
   const transport = await installSseTransport(page, { server })
-  const state = { preferences: [] as Preferences.Entry[], skillReads: 0 }
-  const writes: Preferences.Entry[] = []
+  const state = { settings: [] as Settings.Entry[], skillReads: 0 }
+  const writes: Settings.Entry[] = []
   await page.addInitScript((directory) => {
     localStorage.setItem(
       "opencode.global.dat:server",
       JSON.stringify({
-        projects: { local: [{ worktree: directory, name: "Skill preferences", expanded: true }] },
+        projects: { local: [{ worktree: directory, name: "Skill settings", expanded: true }] },
       }),
     )
   }, directory)
   await mockOpenCodeServer(page, {
     directory,
     project: {
-      id: "proj_skill_preferences",
+      id: "proj_skill_settings",
       canonical: directory,
-      name: "Skill preferences",
+      name: "Skill settings",
       vcs: "git",
       time: { created: 1700000000000, updated: 1700000000000 },
       sandboxes: [],
@@ -176,9 +176,9 @@ async function setup(page: Page) {
     sessions: [
       {
         id: sessionID,
-        projectID: "proj_skill_preferences",
+        projectID: "proj_skill_settings",
         directory,
-        title: "Skill preferences session",
+        title: "Skill settings session",
         time: { created: 1700000000000, updated: 1700000000000 },
       },
     ],
@@ -192,7 +192,7 @@ async function setup(page: Page) {
         headers,
         json: {
           directory: current,
-          project: { id: current ? "proj_skill_preferences" : "global", directory: current, canonical: current },
+          project: { id: current ? "proj_skill_settings" : "global", directory: current, canonical: current },
         },
       })
     },
@@ -210,7 +210,7 @@ async function setup(page: Page) {
             ...skill,
             slash: true,
             autoinvoke: false,
-            description: "Skill preferences fixture",
+            description: "Skill settings fixture",
             content: "Review the code",
             location: `${directory}/${skill.id}/SKILL.md`,
           })),
@@ -226,9 +226,9 @@ async function setup(page: Page) {
       expect(url.origin).toBe(server)
       expect(url.search).toBe("")
       if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers })
-      if (request.method() === "GET") return route.fulfill({ json: state.preferences, headers })
+      if (request.method() === "GET") return route.fulfill({ json: state.settings, headers })
       expect(request.method()).toBe("PUT")
-      const entry = Schema.decodeUnknownSync(Preferences.Entry)({
+      const entry = Schema.decodeUnknownSync(Settings.Entry)({
         target: {
           kind: "skill.activation",
           id: decodeURIComponent(url.pathname.slice("/api/settings/skill.activation/".length)),
@@ -236,7 +236,7 @@ async function setup(page: Page) {
         ...request.postDataJSON(),
       })
       writes.push(entry)
-      state.preferences = [...state.preferences.filter((item) => item.target.id !== entry.target.id), entry]
+      state.settings = [...state.settings.filter((item) => item.target.id !== entry.target.id), entry]
       return route.fulfill({ status: 204, headers })
     },
   )
