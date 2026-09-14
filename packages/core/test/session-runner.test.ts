@@ -1497,7 +1497,7 @@ describe("SessionRunnerLLM", () => {
       expect(continued.system.map((part) => part.text)).toContain("Checkpoint instructions")
       expect(systemTexts(continued)).toEqual(["Newest instructions"])
 
-      const forked = yield* s.session.fork({ sessionID, boundary: { type: "before", messageID: after.id } })
+      const forked = yield* s.session.fork({ sessionID, before: after.id })
       yield* s.session.prompt({ sessionID: forked.id, text: "Fork prompt", resume: false })
       yield* s.session.resume(forked.id)
       expect(s.requests.at(-1)?.messages[0]).toEqual(replacement[0])
@@ -1552,7 +1552,7 @@ describe("SessionRunnerLLM", () => {
     s.systemBaseline = "Latest context"
     yield* s.runPrompt("Third")
 
-    const forked = yield* s.session.fork({ sessionID, boundary: { type: "before", messageID: second.id } })
+    const forked = yield* s.session.fork({ sessionID, before: second.id })
     expect(
       yield* s.db.select().from(InstructionStateTable).where(eq(InstructionStateTable.session_id, forked.id)).get(),
     ).toMatchObject({
@@ -1597,14 +1597,14 @@ describe("SessionRunnerLLM", () => {
     s.systemBaseline = "Changed context"
     const second = yield* s.runPrompt("Second")
 
-    const child = yield* s.session.fork({ sessionID, boundary: { type: "before", messageID: second.id } })
+    const child = yield* s.session.fork({ sessionID, before: second.id })
     const inheritedFirst = (yield* s.session.messages({ sessionID: child.id })).find(
       (message) => message.type === "user" && message.text === "First",
     )
     if (!inheritedFirst) return yield* Effect.die(new Error("Nested fork boundary message not found"))
     const grandchild = yield* s.session.fork({
       sessionID: child.id,
-      boundary: { type: "before", messageID: inheritedFirst.id },
+      before: inheritedFirst.id,
     })
 
     expect(
@@ -1996,6 +1996,38 @@ describe("SessionRunnerLLM", () => {
     yield* s.runPrompt("Fourth")
   })
 
+  scenario("records a same-model effort switch as a cache-preserving effort update", function* (s) {
+    s.currentModel = LanguageModel.make({ id: "claude-opus-5", provider: "anthropic", route: AnthropicMessages.route })
+    const model = { id: ID.make("claude-opus-5"), providerID: Provider.ID.make("anthropic") }
+    yield* s.bus.publish(SessionEvent.ModelSelected, {
+      sessionID,
+      model: { ...model, variant: Model.VariantID.make("high") },
+    })
+    yield* s.llm.push(TestLLM.text("Earlier answer", "text-effort-high"))
+    yield* s.runPrompt("First")
+    yield* s.bus.publish(SessionEvent.ModelSelected, {
+      sessionID,
+      model: { ...model, variant: Model.VariantID.make("low") },
+    })
+    s.currentModel = LanguageModel.update(s.currentModel, { defaults: { providerOptions: { effort: "low" } } })
+    yield* s.llm.push(TestLLM.text("Later answer", "text-effort-low"))
+    yield* s.runPrompt("Second")
+
+    expect(messageRoles(s.requests[1])).toEqual(["user", "assistant", "system", "user"])
+    expect(s.requests[1]?.messages[2]).toEqual(Message.effort({ effort: "low", previous: "high" }))
+
+    const compiled = yield* compileRequest(s.requests[1]!)
+    expect(compiled.body).toMatchObject({
+      output_config: { effort: "high" },
+      messages: [
+        { role: "user" },
+        { role: "assistant" },
+        { role: "system", content: [], output_config: { effort: "low" } },
+        { role: "user" },
+      ],
+    })
+  })
+
   scenario("preserves instruction values while a source is temporarily unavailable", function* (s) {
     yield* s.runPrompt("First")
     yield* s.bus.publish(SessionEvent.ModelSelected, {
@@ -2036,7 +2068,7 @@ describe("SessionRunnerLLM", () => {
     yield* replaySessionProjection(sessionID)
     const latest = yield* s.runPrompt("Third")
     expect(systemTexts(s.requests[3])).toEqual(["Replacement context"])
-    const fork = yield* s.session.fork({ sessionID, boundary: { type: "before", messageID: latest.id } })
+    const fork = yield* s.session.fork({ sessionID, before: latest.id })
     expect(
       (yield* s.session.context(fork.id)).flatMap((message) => (message.type === "system" ? [message.text] : [])),
     ).toEqual(["Replacement context"])
@@ -4401,7 +4433,13 @@ describe("SessionRunnerLLM", () => {
       Expected.assistant({}, [
         Expected.failedTool(
           { id: "call-missing" },
-          { error: { type: "tool.execution", message: "Unknown tool: missing" } },
+          {
+            error: {
+              type: "tool.execution",
+              message:
+                'No tool named "missing" is currently available. Please use a tool from the available tool list.',
+            },
+          },
         ),
       ]),
       Expected.assistant({ finish: "stop" }, [Expected.text("Recovered")]),

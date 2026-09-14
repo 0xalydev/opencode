@@ -67,15 +67,6 @@ export const settings: Setting[] = [
     keywords: ["side panel"],
   },
   {
-    title: "command.category.terminal",
-    category: "command.category.session",
-    path: ["session", "terminal"],
-    default: process.platform !== "win32",
-    values: [false, true],
-    labels: ["tui.off", "tui.on"],
-    keywords: ["pty", "shell", "terminal pane"],
-  },
-  {
     title: "tui.scrollbar",
     category: "command.category.session",
     path: ["session", "scrollbar"],

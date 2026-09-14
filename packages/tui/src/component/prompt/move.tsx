@@ -41,7 +41,7 @@ export function usePromptMove(input: { projectID: () => string | undefined; sess
       const project = data.location.info(location)?.project
       if (!project) throw new Error(language.t("tui.promptUi.projectUnknown"))
       const result = await client.api.worktree.create({
-        location: { directory: location.directory, workspace: location.workspaceID },
+        location: { directory: location.directory },
         name,
       })
       const directory = result.directory
@@ -120,9 +120,9 @@ export function usePromptMove(input: { projectID: () => string | undefined; sess
     const location = homeLocation()
     const current = data.location.info(location)
     if (current) return current.project.id
-    return client.api.project
-      .current({ location: { directory: location.directory, workspace: location.workspaceID } })
-      .then((project) => project.id)
+    return client.api.location
+      .get({ location: { directory: location.directory } })
+      .then((result) => result.project.id)
       .catch(() => undefined)
   }
 

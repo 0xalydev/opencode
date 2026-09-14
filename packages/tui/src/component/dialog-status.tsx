@@ -49,8 +49,8 @@ export function DialogStatus() {
                       <Match when={item.status.status === "disabled"}>
                         {language.t("tui.details.disabledInConfiguration")}
                       </Match>
-                      <Match when={item.status.status === "needs_auth"}>
-                        {language.t("tui.details.needsAuthentication")}
+                      <Match when={item.status.status === "needs_auth" && item.status}>
+                        {(val) => `${language.t("tui.details.needsAuthentication")}: ${val().error}`}
                       </Match>
                     </Switch>
                   </span>

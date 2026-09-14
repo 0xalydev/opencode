@@ -345,8 +345,8 @@ export function Prompt(props: PromptProps) {
   let promptPartTypeId = 0
   const event = useEvent()
 
-  event.on("tui.prompt.append", (evt, { workspace }) => {
-    if (workspace !== (currentLocation.current?.workspaceID ?? data.location.default().workspaceID)) return
+  event.on("tui.prompt.append", (evt, { directory }) => {
+    if (directory !== (currentLocation.current?.directory ?? data.location.default().directory)) return
     if (!input || input.isDestroyed) return
     input.insertText(evt.data.text)
     setTimeout(() => {
@@ -1164,19 +1164,9 @@ export function Prompt(props: PromptProps) {
       }),
     )
     const slashHead = parseSlashHead(inputText, /\s/)
-    const isSkill =
-      !(store.prompt.skills?.length ?? 0) &&
-      slashHead !== undefined &&
-      (data.location.skill.list(currentLocation.ref) ?? []).some(
-        (skill) => skill.slash === true && skill.id === slashHead.name,
-      )
     const isCommand =
       slashHead !== undefined &&
       (data.location.command.list(currentLocation.ref) ?? []).some((command) => command.name === slashHead.name)
-    if (delivery === "queue" && isSkill) {
-      toast.show({ message: language.t("tui.skillsCannotBeQueued"), variant: "warning" })
-      return false
-    }
     const editorSelection = editorContext()
     const pendingEditorSelection = editorSelection && editor.labelState() === "pending" ? editorSelection : undefined
     if (delivery === "queue" && pendingEditorSelection) {
@@ -1190,7 +1180,7 @@ export function Prompt(props: PromptProps) {
       void promptModelWarning()
       return false
     }
-    const usesModel = !props.sessionID || (store.mode !== "shell" && !isSkill)
+    const usesModel = !props.sessionID || store.mode !== "shell"
     if (usesModel && !local.model.available(selection)) {
       toast.show({
         title: language.t("tui.modelUnavailable"),
@@ -1254,7 +1244,7 @@ export function Prompt(props: PromptProps) {
       session = data.session.get(created.id)
       newSession = {
         gate: created.request.then(async (info) => {
-          if (info.location.workspaceID === undefined && terminalEnvironment.variables !== undefined) {
+          if (terminalEnvironment.variables !== undefined) {
             await client.api.session.environment({ sessionID: created.id, variables: terminalEnvironment.variables })
           }
         }),
@@ -1333,9 +1323,6 @@ export function Prompt(props: PromptProps) {
         toast.show({ title: language.t("tui.failedToRunCommand"), message: errorMessage(error), variant: "error" })
         restoreEntry()
       })
-    } else if (isSkill) {
-      move.startSubmit()
-      dispatch(() => client.api.session.skill({ sessionID: target, skill: slashHead.name }))
     } else {
       move.startSubmit()
       try {
@@ -1413,8 +1400,6 @@ export function Prompt(props: PromptProps) {
         })
       if (pendingEditorSelection) editor.markSelectionSent()
     }
-
-    sessionTabs.promote(target)
 
     // Optimistic admission puts the message in the store synchronously, so
     // the session view renders it on arrival.

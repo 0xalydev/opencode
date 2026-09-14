@@ -33,19 +33,22 @@ for (const rtl of [false, true]) {
       "aria-expanded",
       "true",
     )
-    await expect(summary.getByRole("button", { name: "Server", exact: true })).toHaveAttribute("aria-expanded", "true")
+    await expect(summary.getByRole("button", { name: "Extensions", exact: true })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    )
     await expect
       .poll(async () => {
-        const view = await page.locator('[data-component="new-session"]').boundingBox()
+        const button = await trigger.boundingBox()
         const project = await summary.locator('[data-section="project"]').boundingBox()
         const server = await summary.locator('[data-section="server"]').boundingBox()
-        if (!view || !project || !server) return
+        if (!button || !project || !server) return
         return {
-          top: project.y - view.y - 48,
+          top: project.y - button.y - button.height,
           cards: server.y - project.y - project.height,
         }
       })
-      .toEqual({ top: 6, cards: 8 })
+      .toEqual({ top: 12, cards: 8 })
     await testInfo.attach(`new-session-summary-${rtl ? "rtl" : "ltr"}`, {
       body: await page.screenshot(),
       contentType: "image/png",
@@ -340,7 +343,7 @@ async function openDraft(page: Page, worktree = "main", options: { git?: boolean
       (route) => route.fulfill({ json: { location: { directory }, data: { branch: {} } } }),
     )
   }
-  await page.route("**/api/mcp**", async (route) => {
+  await page.route(/\/api\/(?:experimental\/)?mcp(?:[/?]|$)/, async (route) => {
     if (route.request().method() === "OPTIONS") return route.fallback()
     const url = new URL(route.request().url())
     const target = url.searchParams.get("location[directory]") ?? directory
@@ -401,7 +404,7 @@ async function openDraft(page: Page, worktree = "main", options: { git?: boolean
             {
               id: "summary-skill",
               name: "summary-skill",
-              location: "/skills/summary/SKILL.md",
+              path: "/skills/summary/SKILL.md",
               content: "Summary skill",
             },
           ],

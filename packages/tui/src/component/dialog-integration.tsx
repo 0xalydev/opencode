@@ -212,7 +212,7 @@ function manageConnections(
                 onSelect: () => {
                   if (credentialConnections(current() ?? integration)[0]?.id === connection.id) return
                   void client.api.credential
-                    .activate({ credentialID: connection.id, location: locationQuery(location) })
+                    .activate({ credentialID: connection.id })
                     .catch(toast.error)
                 },
               }
@@ -236,7 +236,7 @@ function manageConnections(
                     const label = value.trim()
                     if (!label) return
                     void client.api.credential
-                      .update({ credentialID: option.value, label, location: locationQuery(location) })
+                      .update({ credentialID: option.value, label })
                       .then(() => manageConnections(integration, methods, location, dialog, language, onConnected))
                       .catch(toast.error)
                   }}
@@ -253,7 +253,7 @@ function manageConnections(
               if (deleting() !== option.value) return setDeleting(option.value)
               const final = credentialConnections(current() ?? integration).length === 1
               void client.api.credential
-                .remove({ credentialID: option.value, location: locationQuery(location) })
+                .remove({ credentialID: option.value })
                 .then(() => {
                   setDeleting(undefined)
                   if (!final) return
@@ -1095,7 +1095,7 @@ function providerID(data: ReturnType<typeof useData>, location: LocationRef, int
 }
 
 function locationQuery(location: LocationRef) {
-  return { directory: location.directory, workspace: location.workspaceID }
+  return { directory: location.directory }
 }
 
 function message(cause: unknown, language: Language) {
