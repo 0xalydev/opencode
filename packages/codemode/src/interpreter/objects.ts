@@ -122,7 +122,13 @@ export class ProgramGenerator extends ProgramObject {
   }
 }
 
-export class ProgramDate extends ProgramObject {
+/** A built-in object wrapping a host value; data-like, but never plain data. `kind` is its JS class name. */
+export abstract class ProgramWrapper extends ProgramObject {
+  abstract readonly kind: string
+}
+
+export class ProgramDate extends ProgramWrapper {
+  readonly kind = "Date"
   constructor(
     proto: ProgramObject,
     public time: number,
@@ -131,7 +137,8 @@ export class ProgramDate extends ProgramObject {
   }
 }
 
-export class ProgramRegExp extends ProgramObject {
+export class ProgramRegExp extends ProgramWrapper {
+  readonly kind = "RegExp"
   readonly regex: RegExp
   constructor(proto: ProgramObject, pattern: string, flags: string) {
     super(proto)
@@ -140,15 +147,18 @@ export class ProgramRegExp extends ProgramObject {
   }
 }
 
-export class ProgramMap extends ProgramObject {
+export class ProgramMap extends ProgramWrapper {
+  readonly kind = "Map"
   readonly map = new Map<unknown, unknown>()
 }
 
-export class ProgramSet extends ProgramObject {
+export class ProgramSet extends ProgramWrapper {
+  readonly kind = "Set"
   readonly set = new Set<unknown>()
 }
 
-export class ProgramURLSearchParams extends ProgramObject {
+export class ProgramURLSearchParams extends ProgramWrapper {
+  readonly kind = "URLSearchParams"
   constructor(
     proto: ProgramObject,
     readonly params: URLSearchParams,
@@ -157,7 +167,8 @@ export class ProgramURLSearchParams extends ProgramObject {
   }
 }
 
-export class ProgramURL extends ProgramObject {
+export class ProgramURL extends ProgramWrapper {
+  readonly kind = "URL"
   readonly searchParams: ProgramURLSearchParams
   constructor(
     proto: ProgramObject,
@@ -179,16 +190,7 @@ export class ProgramHandle extends ProgramObject {
   }
 }
 
-/** Built-in objects that wrap a host value; data-like, but never plain data. */
-export const isWrapper = (
-  value: unknown,
-): value is ProgramDate | ProgramRegExp | ProgramMap | ProgramSet | ProgramURL | ProgramURLSearchParams =>
-  value instanceof ProgramDate ||
-  value instanceof ProgramRegExp ||
-  value instanceof ProgramMap ||
-  value instanceof ProgramSet ||
-  value instanceof ProgramURL ||
-  value instanceof ProgramURLSearchParams
+export const isWrapper = (value: unknown): value is ProgramWrapper => value instanceof ProgramWrapper
 
 const MAX_ARRAY_INDEX = 4_294_967_295
 

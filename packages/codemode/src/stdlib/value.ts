@@ -8,11 +8,10 @@ import {
   ProgramArray,
   ProgramDate,
   ProgramError,
-  ProgramMap,
   ProgramRegExp,
-  ProgramSet,
   ProgramURL,
   ProgramURLSearchParams,
+  ProgramWrapper,
 } from "../interpreter/objects.js"
 import type { Runner } from "../interpreter/runner.js"
 
@@ -25,10 +24,9 @@ export const coerceToString = (value: unknown): string => {
   if (value instanceof ProgramDate)
     return Number.isFinite(value.time) ? new Date(value.time).toISOString() : "Invalid Date"
   if (value instanceof ProgramRegExp) return `/${value.regex.source}/${value.regex.flags}`
-  if (value instanceof ProgramMap) return "[object Map]"
-  if (value instanceof ProgramSet) return "[object Set]"
   if (value instanceof ProgramURL) return value.url.href
   if (value instanceof ProgramURLSearchParams) return value.params.toString()
+  if (value instanceof ProgramWrapper) return `[object ${value.kind}]`
   if (value instanceof ProgramError) {
     // Match Error.prototype.toString: "name: message", or just one when the other is empty.
     const name = get(value, "name")

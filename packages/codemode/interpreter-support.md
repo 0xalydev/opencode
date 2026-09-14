@@ -272,8 +272,9 @@ ultimate source of truth. Upstream test262 files run verbatim from `test/test262
 - [x] `Object.is` for supported data values.
 - [x] `Object.groupBy` over finite collections and custom synchronous iterators/generators, with string-key coercion
       and plain-object results.
-- [x] `Object.prototype` methods on values: `toString` (`"[object Array]"`), `toLocaleString`, `valueOf`,
-      `hasOwnProperty`, `isPrototypeOf`, and `propertyIsEnumerable`.
+- [x] `Object.prototype` methods on values: `toString` (`"[object Array]"`, `"[object Map]"`, and the class name of
+      every built-in wrapper), `toLocaleString`, `valueOf`, `hasOwnProperty`, `isPrototypeOf`, and
+      `propertyIsEnumerable`.
 
 ## Arrays
 

@@ -21,6 +21,7 @@ import {
   ProgramSet,
   ProgramURL,
   ProgramURLSearchParams,
+  type ProgramWrapper,
 } from "./interpreter/objects.js"
 
 export const MAX_VALUE_DEPTH = 32
@@ -116,21 +117,8 @@ const copy = (
 
   if (protos !== undefined && mode === "program") {
     if (value instanceof ProgramObject) return value
-    if (value instanceof Date) return new ProgramDate(protos.Date, value.getTime())
-    if (value instanceof RegExp) return new ProgramRegExp(protos.RegExp, value.source, value.flags)
-    if (value instanceof Map) {
-      const wrapped = new ProgramMap(protos.Map)
-      for (const [key, item] of value.entries()) wrapped.map.set(next(key), next(item))
-      return wrapped
-    }
-    if (value instanceof Set) {
-      const wrapped = new ProgramSet(protos.Set)
-      for (const item of value.values()) wrapped.set.add(next(item))
-      return wrapped
-    }
-    if (value instanceof URL) return new ProgramURL(protos.URL, protos.URLSearchParams, new URL(value.href))
-    if (value instanceof URLSearchParams)
-      return new ProgramURLSearchParams(protos.URLSearchParams, new URLSearchParams(value))
+    const wrapped = wrapHost(protos, value, next)
+    if (wrapped !== undefined) return wrapped
   }
 
   if (value instanceof ProgramDate) return Number.isFinite(value.time) ? new Date(value.time).toISOString() : null
@@ -220,6 +208,31 @@ const copy = (
   }
   seen.delete(value)
   return copied
+}
+
+/** The built-in wrapper for a host Date, RegExp, Map, Set, URL, or URLSearchParams, copying contents through `next`. */
+export const wrapHost = (
+  protos: Prototypes,
+  value: object,
+  next: (item: unknown) => unknown,
+): ProgramWrapper | undefined => {
+  if (value instanceof Date) return new ProgramDate(protos.Date, value.getTime())
+  if (value instanceof RegExp) return new ProgramRegExp(protos.RegExp, value.source, value.flags)
+  if (value instanceof Map) {
+    const wrapped = new ProgramMap(protos.Map)
+    for (const [key, item] of value) wrapped.map.set(next(key), next(item))
+    return wrapped
+  }
+  if (value instanceof Set) {
+    const wrapped = new ProgramSet(protos.Set)
+    for (const item of value) wrapped.set.add(next(item))
+    return wrapped
+  }
+  if (value instanceof URL) return new ProgramURL(protos.URL, protos.URLSearchParams, new URL(value.href))
+  if (value instanceof URLSearchParams) {
+    return new ProgramURLSearchParams(protos.URLSearchParams, new URLSearchParams(value))
+  }
+  return undefined
 }
 
 // Own data property regardless of the target's prototype, so a "__proto__" key on a host object

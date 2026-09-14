@@ -6,16 +6,11 @@ import {
   isWrapper,
   ownKeys,
   ProgramArray,
-  ProgramDate,
   ProgramGenerator,
   ProgramHandle,
-  ProgramMap,
   ProgramObject,
   ProgramPromise,
-  ProgramRegExp,
-  ProgramSet,
-  ProgramURL,
-  ProgramURLSearchParams,
+  ProgramWrapper,
 } from "./objects.js"
 
 /** Values that cannot cross the data boundary. */
@@ -80,12 +75,7 @@ export const describeValue = (value: unknown): string => {
   if (value instanceof ProgramArray) return "an array"
   if (value instanceof ProgramPromise) return "an un-awaited Promise"
   if (value instanceof ToolReference) return "a tool reference"
-  if (value instanceof ProgramDate) return "a Date"
-  if (value instanceof ProgramRegExp) return "a RegExp"
-  if (value instanceof ProgramMap) return "a Map"
-  if (value instanceof ProgramSet) return "a Set"
-  if (value instanceof ProgramURL) return "a URL"
-  if (value instanceof ProgramURLSearchParams) return "a URLSearchParams"
+  if (value instanceof ProgramWrapper) return `a ${value.kind}`
   if (value instanceof ProgramGenerator) return "a generator"
   if (value instanceof ProgramHandle) return `a ${value.instance.constructor.name}`
   if (isRuntimeReference(value)) return "a function"

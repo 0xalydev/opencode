@@ -21,11 +21,10 @@ import {
   keys,
   own,
   ProgramArray,
-  ProgramDate,
   ProgramError,
   ProgramObject,
   ProgramPromise,
-  ProgramRegExp,
+  ProgramWrapper,
   set,
 } from "../interpreter/objects.js"
 import { containsOpaqueReference, describeValue, rejectCircularInsertion } from "../interpreter/references.js"
@@ -108,8 +107,7 @@ export const classTag = (value: unknown): string => {
   if (value instanceof ProgramArray) return "Array"
   if (value instanceof Callable) return "Function"
   if (value instanceof ProgramError) return "Error"
-  if (value instanceof ProgramDate) return "Date"
-  if (value instanceof ProgramRegExp) return "RegExp"
+  if (value instanceof ProgramWrapper) return value.kind
   if (typeof value === "string") return "String"
   if (typeof value === "number") return "Number"
   if (typeof value === "boolean") return "Boolean"

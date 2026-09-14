@@ -681,6 +681,14 @@ describe("Map", () => {
 })
 
 describe("Set", () => {
+  test("wrappers report their class through Object.prototype.toString and in diagnostics", async () => {
+    expect(
+      await value(`return [new Map().toString(), new Set().toString(), new URLSearchParams().toString()]`),
+    ).toEqual(["[object Map]", "[object Set]", ""])
+    expect((await error(`Array.from(new URL("https://a.test/"))`)).message).toContain("received a URL")
+    expect((await error(`Array.from(/x/)`)).message).toContain("received a RegExp")
+  })
+
   test("add/has/delete/size with chaining", async () => {
     expect(
       await value(`

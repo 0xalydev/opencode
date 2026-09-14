@@ -1,5 +1,5 @@
 import { Effect } from "effect"
-import { MAX_VALUE_DEPTH } from "../data.js"
+import { MAX_VALUE_DEPTH, wrapHost } from "../data.js"
 import type { Extension } from "../extension.js"
 import { coerceToString } from "../stdlib/value.js"
 import type { Host } from "./globals.js"
@@ -109,26 +109,12 @@ export const extensionGlobals = <R>(
         handles.set(value, handle)
         return handle
       }
-      if (value instanceof Date) return new ProgramDate(protos.Date, value.getTime())
-      if (value instanceof RegExp) return new ProgramRegExp(protos.RegExp, value.source, value.flags)
       if (value instanceof Error) {
         return createErrorValue(protos[isErrorType(value.name) ? value.name : "Error"], value.message)
       }
-      if (value instanceof URL) return new ProgramURL(protos.URL, protos.URLSearchParams, new URL(value.href))
-      if (value instanceof URLSearchParams) {
-        return new ProgramURLSearchParams(protos.URLSearchParams, new URLSearchParams(value))
-      }
       const next = (item: unknown) => fromHost(item, label, depth + 1, seen)
-      if (value instanceof Map) {
-        const wrapped = new ProgramMap(protos.Map)
-        for (const [key, item] of value) wrapped.map.set(next(key), next(item))
-        return wrapped
-      }
-      if (value instanceof Set) {
-        const wrapped = new ProgramSet(protos.Set)
-        for (const item of value) wrapped.set.add(next(item))
-        return wrapped
-      }
+      const wrapped = wrapHost(protos, value, next)
+      if (wrapped !== undefined) return wrapped
       if (seen.has(value)) throw typeError(`${label} produced a circular value.`)
       seen.add(value)
       if (Array.isArray(value)) {
