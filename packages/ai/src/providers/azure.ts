@@ -1,11 +1,13 @@
 import { Headers } from "effect/unstable/http"
 import { Auth } from "../route/auth.js"
 import { type AtLeastOne, type ProviderAuthOption } from "../route/auth-options.js"
-import type { Route, RouteDefaultsInput, CompactionOperations } from "../route/client.js"
+import { Route, type RouteDefaultsInput, type CompactionOperations } from "../route/client.js"
+import { Endpoint } from "../route/endpoint.js"
 import type { ProviderPackage } from "../provider-package.js"
 import { ProviderConfigurationError, ProviderID, type ModelID } from "../schema/index.js"
 import * as OpenAIChat from "../protocols/openai-chat.js"
 import * as OpenAIResponses from "../protocols/openai-responses.js"
+import { AzureResponses, type Body } from "../protocols/azure-responses.js"
 import { ProviderShared } from "../protocols/shared.js"
 import { withOpenAIOptions, type OpenAIProviderOptionsInput } from "./openai-options.js"
 
@@ -38,35 +40,56 @@ export type Settings = ProviderPackage.Settings &
 
 const resourceBaseURL = (resourceName: string) => `https://${resourceName.trim()}.openai.azure.com/openai`
 
+const isFoundryProject = (baseURL: string | undefined) => {
+  if (baseURL === undefined) return false
+  const url = new URL(baseURL)
+  return url.hostname.endsWith(".services.ai.azure.com") && url.pathname.startsWith("/api/projects/")
+}
+
+const responsesChannel = {
+  id: "azure-openai-responses",
+  name: "Azure OpenAI Responses",
+  rotateAfterMs: RESPONSES_WEBSOCKET_ROTATE_AFTER_MS,
+  enabled: (value) => {
+    const url = new URL(value)
+    return (
+      url.protocol === "https:" &&
+      url.hostname.endsWith(".openai.azure.com") &&
+      url.pathname.endsWith("/openai/v1/responses") &&
+      url.searchParams.get("api-version") === "v1"
+    )
+  },
+  url: (value) => {
+    const url = new URL(value)
+    url.searchParams.delete("api-version")
+    return url.toString()
+  },
+  headers: (headers) => {
+    const apiKey = headers["api-key"]
+    if (!apiKey) return headers
+    return Headers.remove(Headers.set(headers, "authorization", `Bearer ${apiKey}`), "api-key")
+  },
+} satisfies Parameters<typeof OpenAIResponses.channelTransport>[0]
+
 const responsesRoute = OpenAIResponses.route.with({
   compact: { endpoint: OpenAIResponses.route.compact.endpoint },
   id: "azure-openai-responses",
   provider: id,
   auth: routeAuth,
-  transport: OpenAIResponses.channelTransport({
-    id: "azure-openai-responses",
-    name: "Azure OpenAI Responses",
-    rotateAfterMs: RESPONSES_WEBSOCKET_ROTATE_AFTER_MS,
-    enabled: (value) => {
-      const url = new URL(value)
-      return (
-        url.protocol === "https:" &&
-        url.hostname.endsWith(".openai.azure.com") &&
-        url.pathname.endsWith("/openai/v1/responses") &&
-        url.searchParams.get("api-version") === "v1"
-      )
-    },
-    url: (value) => {
-      const url = new URL(value)
-      url.searchParams.delete("api-version")
-      return url.toString()
-    },
-    headers: (headers) => {
-      const apiKey = headers["api-key"]
-      if (!apiKey) return headers
-      return Headers.remove(Headers.set(headers, "authorization", `Bearer ${apiKey}`), "api-key")
-    },
-  }),
+  transport: OpenAIResponses.channelTransport(responsesChannel),
+})
+
+const foundryResponsesRoute = Route.make({
+  compact: { endpoint: OpenAIResponses.route.compact.endpoint },
+  defaults: OpenAIResponses.route.defaults,
+  endpoint: Endpoint.path<Body>(OpenAIResponses.PATH, { baseURL: OpenAIResponses.DEFAULT_BASE_URL }),
+  headers: OpenAIResponses.route.headers,
+  id: "azure-foundry-responses",
+  provider: id,
+  providerMetadataKey: id,
+  protocol: AzureResponses.protocol,
+  auth: routeAuth,
+  transport: OpenAIResponses.channelTransport<Body>(responsesChannel),
 })
 
 const chatRoute = OpenAIChat.route.with({
@@ -75,7 +98,7 @@ const chatRoute = OpenAIChat.route.with({
   auth: routeAuth,
 })
 
-export const routes = [responsesRoute, chatRoute]
+export const routes = [responsesRoute, foundryResponsesRoute, chatRoute]
 
 const defaults = (input: Config) => {
   const {
@@ -127,10 +150,15 @@ function endpoint(input: Config, modelID: string | ModelID) {
 export const configure = (input: Config) => {
   const modelDefaults = defaults(input)
 
-  const responses = (modelID: string | ModelID) =>
-    configuredRoute(responsesRoute, input, modelID)
+  const responses = (modelID: string | ModelID) => {
+    if (isFoundryProject(input.baseURL))
+      return configuredRoute(foundryResponsesRoute, input, modelID)
+        .with(withOpenAIOptions(modelID, modelDefaults))
+        .model<OpenAIProviderOptionsInput>({ id: modelID })
+    return configuredRoute(responsesRoute, input, modelID)
       .with(withOpenAIOptions(modelID, modelDefaults))
       .model<OpenAIProviderOptionsInput>({ id: modelID })
+  }
 
   const chat = (modelID: string | ModelID) =>
     configuredRoute(chatRoute, input, modelID)

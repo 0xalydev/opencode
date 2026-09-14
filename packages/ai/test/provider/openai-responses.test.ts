@@ -416,6 +416,58 @@ describe("OpenAI Responses route", () => {
     }),
   )
 
+  it.effect("adds explicit message item types for Azure Foundry project endpoints", () =>
+    Effect.gen(function* () {
+      const prepared = yield* compileRequest(
+        LLM.request({
+          model: Azure.configure({
+            baseURL: "https://resource.services.ai.azure.com/api/projects/project/openai/v1",
+            apiKey: "test",
+          }).responses("deployment"),
+          messages: [Message.user("Before."), Message.system("Operator update."), Message.assistant("After.")],
+        }),
+      )
+
+      expect(prepared.body.input).toEqual([
+        { type: "message", role: "user", content: [{ type: "input_text", text: "Before." }] },
+        { type: "message", role: "developer", content: "Operator update." },
+        { type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: "After." }] },
+      ])
+      expect(prepared.protocol).toBe("azure-responses")
+    }),
+  )
+
+  it.effect("keeps shorthand message items for other Azure Responses endpoints", () =>
+    Effect.gen(function* () {
+      const inputs = yield* Effect.forEach(
+        ["https://resource.openai.azure.com/openai", "https://gateway.example/azure"],
+        (baseURL) =>
+          compileRequest(
+            LLM.request({
+              model: Azure.configure({ baseURL, apiKey: "test" }).responses("deployment"),
+              messages: [Message.user("Before."), Message.system("Operator update.")],
+            }),
+          ).pipe(Effect.map((prepared) => prepared.body.input)),
+      )
+
+      expect(inputs).toEqual([
+        [
+          { role: "user", content: [{ type: "input_text", text: "Before." }] },
+          { role: "developer", content: "Operator update." },
+        ],
+        [
+          { role: "user", content: [{ type: "input_text", text: "Before." }] },
+          { role: "developer", content: "Operator update." },
+        ],
+      ])
+      expect(
+        ["https://resource.openai.azure.com/openai", "https://gateway.example/azure"].map(
+          (baseURL) => Azure.configure({ baseURL, apiKey: "test" }).responses("deployment").route.protocol,
+        ),
+      ).toEqual(["openai-responses", "openai-responses"])
+    }),
+  )
+
   it.effect("prepares one OpenAI Responses route for either transport", () =>
     Effect.gen(function* () {
       const prepared = yield* compileRequest(
