@@ -52,6 +52,15 @@ export interface ProtocolBody<Body> {
   readonly from: (request: LLMRequest) => Effect.Effect<Body, AIError>
 }
 
+export interface ProtocolBodyExtension<Body, NextBody> {
+  /** Stable id for the derived wire protocol. Defaults to the base protocol id. */
+  readonly id?: ProtocolID
+  /** Schema for the derived provider-native body. */
+  readonly schema: Schema.Codec<NextBody, unknown>
+  /** Build the derived body, optionally invoking the base protocol with this or another request. */
+  readonly from: (request: LLMRequest, base: ProtocolBody<Body>["from"]) => Effect.Effect<NoInfer<NextBody>, AIError>
+}
+
 export interface ProtocolStream<Frame, Event, State> {
   /** Schema for one decoded streaming event, decoded from a transport frame. */
   readonly event: Schema.Codec<Event, Frame>
@@ -80,6 +89,20 @@ export interface ProtocolStream<Frame, Event, State> {
 export const make = <Body, Frame, Event, State>(
   input: Protocol<Body, Frame, Event, State>,
 ): Protocol<Body, Frame, Event, State> => input
+
+/** Derive a protocol with a different request body while retaining its response stream. */
+export const withBody = <Body, NextBody, Frame, Event, State>(
+  protocol: Protocol<Body, Frame, Event, State>,
+  extension: ProtocolBodyExtension<Body, NextBody>,
+): Protocol<NextBody, Frame, Event, State> =>
+  make({
+    ...protocol,
+    id: extension.id ?? protocol.id,
+    body: {
+      schema: extension.schema,
+      from: (request) => extension.from(request, protocol.body.from),
+    },
+  })
 
 export const jsonEvent = <const S extends Schema.Top>(schema: S) => Schema.fromJsonString(schema)
 

@@ -13,7 +13,7 @@ import { JsonObject, optionalArray, optionalNull, ProviderShared } from "./share
 import { OpenAIImage } from "./utils/openai-image.js"
 import { ResponsesHostedTools } from "./utils/responses-hosted-tools.js"
 import { ToolSchemaProjection } from "./utils/tool-schema.js"
-import { OpenResponsesChannel } from "./open-responses-channel.js"
+import { OpenResponsesChannel, type Options } from "./open-responses-channel.js"
 import { ResponsesCompaction } from "./utils/responses-compaction.js"
 import { ResponsesCheckpoint } from "./utils/responses-checkpoint.js"
 
@@ -96,7 +96,7 @@ const OpenAIResponsesToolChoice = Schema.Union([
   Schema.Struct({ type: Schema.tag("image_generation") }),
 ])
 
-const OpenAIResponsesInputItem = Schema.Union([
+export const OpenAIResponsesInputItem = Schema.Union([
   OpenResponses.InputItem,
   OpenAIResponsesHostedToolItem,
   OpenResponses.ConfigurationUpdate,
@@ -117,7 +117,7 @@ const OpenAIResponsesCoreFields = {
   ),
 }
 
-const OpenAIResponsesBody = Schema.Struct({
+export const OpenAIResponsesBody = Schema.Struct({
   ...OpenAIResponsesCoreFields,
   stream: Schema.Literal(true),
 })
@@ -322,7 +322,9 @@ const endpoint = Endpoint.path<OpenAIResponsesBody>(PATH, { baseURL: DEFAULT_BAS
 const auth = Auth.none
 
 export const httpTransport = HttpTransport.sseJson.with<OpenAIResponsesBody>()
-export const channelTransport = OpenResponsesChannel.transport<OpenAIResponsesBody>
+export const channelTransport = <Body extends OpenAIResponsesBody = OpenAIResponsesBody>(
+  input: Options,
+) => OpenResponsesChannel.transport<Body>(input)
 export const transport = channelTransport({
   id: ADAPTER,
   name: NAME,
