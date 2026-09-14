@@ -453,7 +453,8 @@ export const make = Effect.fn("PluginHost.make")(function* (
           callback({
             list: () => mutable(editor.list()),
             get: editor.get,
-            add: (value, load) => editor.add(Schema.decodeUnknownSync(Skill.Info)(value), load),
+            add: (value: Skill.Info & { readonly content?: string }, load?: Skill.Load) =>
+              editor.add({ ...Schema.decodeUnknownSync(Skill.Info)(value), content: value.content }, load),
             update: editor.update,
             remove: editor.remove,
           })

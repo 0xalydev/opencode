@@ -83,7 +83,8 @@ export type Data = {
 export type Editor = {
   list: () => readonly Types.DeepMutable<Info>[]
   get: (id: string) => Types.DeepMutable<Info> | undefined
-  add: (skill: Info, load: Load) => void
+  /** Pass `content` inline, or a `load` that produces it when the skill is used. */
+  add: (skill: Info & { readonly content?: string }, load?: Load) => void
   update: (id: string, update: (skill: Types.DeepMutable<Info>) => void) => void
   remove: (id: string) => void
 }
@@ -107,8 +108,9 @@ const layer = Layer.effect(
         list: () => Array.from(editor.skills.values()),
         get: (id) => editor.skills.get(ID.make(id)),
         add: (skill, load) => {
-          editor.skills.set(skill.id, { ...skill } as Types.DeepMutable<Info>)
-          editor.loaders.set(skill.id, load)
+          const { content, ...info } = skill
+          editor.skills.set(info.id, info as Types.DeepMutable<Info>)
+          editor.loaders.set(info.id, load ?? (() => Effect.succeed(content ?? "")))
         },
         update: (id, update) => {
           const current = editor.skills.get(ID.make(id))

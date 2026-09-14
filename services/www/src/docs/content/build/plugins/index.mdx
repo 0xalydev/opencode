@@ -810,16 +810,15 @@ when the skill is absent.
 ```ts
 await ctx.skill.transform((editor) => {
   const skills = editor.list()
-  editor.add(
-    {
-      id: "review",
-      name: "Review",
-      description: "Review the current changes",
-      path: "/workspace/.opencode/skills/review.md",
-    },
-    // Runs when the skill is used; the registry holds only metadata.
-    async () => "Review the current changes for correctness and missing tests.",
-  )
+  editor.add({
+    id: "review",
+    name: "Review",
+    description: "Review the current changes",
+    path: "/workspace/.opencode/skills/review.md",
+    content: "Review the current changes for correctness and missing tests.",
+  })
+  // Or pass a loader as the second argument to read the body only when the skill is used.
+  editor.add({ id: "remote", name: "Remote", path: "/skills/remote.md" }, async () => fetchBody())
   const review = editor.get("review")
   editor.update("review", (skill) => {
     skill.autoinvoke = true
