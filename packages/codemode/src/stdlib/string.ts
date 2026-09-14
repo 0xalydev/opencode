@@ -218,12 +218,12 @@ export const stringGlobal = <R>(runner: Runner<R>) => {
           `String.matchAll requires a regular expression with the global (g) flag: write /${pattern.source}/${pattern.flags}g, or use String.match for a single match.`,
         )
       }
-      const matches: Array<unknown> = []
-      for (const match of value.matchAll(pattern)) {
-        checkArrayLength(matches.length + 1)
-        matches.push(matchToValue(protos, match))
-      }
-      return new ProgramArray(protos.Array, matches)
+      // Count natively first: converting each match is the expensive part, and an oversized result must fail before that.
+      checkArrayLength(value.match(pattern)?.length ?? 0)
+      return new ProgramArray(
+        protos.Array,
+        Array.from(value.matchAll(pattern), (match) => matchToValue(protos, match)),
+      )
     }),
     simple("search", 1, (value, args) => value.search(toHostRegex(args[0], "search"))),
     simple("repeat", 1, (value, args) => {
