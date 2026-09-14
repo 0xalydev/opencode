@@ -31,8 +31,8 @@ export const Plugin = define({
           name: Skill.Name.make("OpenCode"),
           description: OpencodeDescription,
           path: AbsolutePath.make("/builtin/opencode.md"),
-          content: OpencodeContent,
         }),
+        () => Effect.succeed(OpencodeContent),
       )
       editor.add(
         Skill.Info.make({
@@ -40,8 +40,8 @@ export const Plugin = define({
           name: Skill.Name.make("Report"),
           description: REPORT_DESCRIPTION,
           path: AbsolutePath.make("/builtin/report.md"),
-          content: reportContent,
         }),
+        () => Effect.succeed(reportContent),
       )
     })
   }),

@@ -145,7 +145,6 @@ metadata:
         description: "Manual only",
         autoinvoke: false,
         path: AbsolutePath.make("/repo/skills/manual/SKILL.md"),
-        content: "# manual",
       },
     })
     expect(SkillFile.parse(directory, "/repo/skills/foo.md", "# foo")).toMatchObject({
@@ -299,6 +298,7 @@ describe("ConfigSkillPlugin.Plugin", () => {
           })
           const skill = yield* start([tmp.path], tmp.path)
           expect((yield* skill.list()).find((item) => item.id === "deploy")?.description).toBe("Initial")
+          expect((yield* skill.get(Skill.ID.make("deploy")))?.content).toBe("# deploy")
 
           const deploy = path.join(tmp.path, "deploy", "SKILL.md")
           yield* Effect.promise(() => write(tmp.path, "deploy", "Updated"))

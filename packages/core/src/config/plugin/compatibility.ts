@@ -72,7 +72,7 @@ export const Plugin = define({
     )
     yield* refresh()
     yield* ctx.skill.transform((editor) => {
-      for (const skill of skills) editor.add(skill)
+      for (const skill of skills) editor.add(skill, SkillFile.read(fs, skill.path))
     })
   }),
 })

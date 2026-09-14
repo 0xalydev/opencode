@@ -18750,12 +18750,9 @@
           },
           "path": {
             "type": "string"
-          },
-          "content": {
-            "type": "string"
           }
         },
-        "required": ["id", "name", "path", "content"],
+        "required": ["id", "name", "path"],
         "additionalProperties": false
       },
       "SkillNotFoundErrorEncoded": {

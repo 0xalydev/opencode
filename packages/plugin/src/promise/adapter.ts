@@ -452,7 +452,15 @@ export function fromPromise(plugin: Plugin) {
           rpc: yield* rpcFromEffect(host.rpc, streams),
           skill: {
             list: adaptApiMethod(SkillEndpoints["skill.list"], host.skill.list),
-            transform: transform(host.skill),
+            transform: (callback) =>
+              register(
+                host.skill.transform((editor) =>
+                  callback({
+                    ...editor,
+                    add: (skill, load) => editor.add(skill, () => Effect.promise(load)),
+                  }),
+                ),
+              ),
             reload: () => run(host.skill.reload()),
           },
           storage: {
