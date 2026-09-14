@@ -71,9 +71,9 @@ describe("acp service directory behavior", () => {
           : [],
       ),
     ).toEqual([
-      ["review", "verify"],
-      ["review", "verify"],
-      ["review", "verify"],
+      ["review"],
+      ["review"],
+      ["review"],
     ])
   })
 

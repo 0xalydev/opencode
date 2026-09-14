@@ -31,7 +31,6 @@ export const Info = Schema.Struct({
   id: ID,
   name: Name,
   description: Schema.String.pipe(optional),
-  slash: Schema.Boolean.pipe(optional),
   autoinvoke: Schema.Boolean.pipe(optional),
   path: AbsolutePath,
   content: Schema.String,

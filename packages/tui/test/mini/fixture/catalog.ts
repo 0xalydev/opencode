@@ -59,6 +59,5 @@ export function stubCatalogLists(
     reference: spyOn(sdk.reference, "list").mockResolvedValue(empty as never),
     command: spyOn(sdk.command, "list").mockResolvedValue(empty as never),
     skill: spyOn(sdk.skill, "list").mockResolvedValue(empty as never),
-    settings: spyOn(sdk.settings, "list").mockResolvedValue([]),
   }
 }

@@ -19047,9 +19047,6 @@
           "description": {
             "type": "string"
           },
-          "slash": {
-            "type": "boolean"
-          },
           "autoinvoke": {
             "type": "boolean"
           },

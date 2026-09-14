@@ -208,7 +208,6 @@ async function setup(page: Page) {
           location: { directory: project ? directory : "" },
           data: (project ? [shared, local] : [shared]).map((skill) => ({
             ...skill,
-            slash: true,
             autoinvoke: false,
             description: "Skill settings fixture",
             content: "Review the code",

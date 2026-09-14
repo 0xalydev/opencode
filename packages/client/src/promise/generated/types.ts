@@ -322,7 +322,6 @@ export type SkillInfo = {
   id: string
   name: string
   description?: string
-  slash?: boolean
   autoinvoke?: boolean
   path: string
   content: string
