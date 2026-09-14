@@ -179,7 +179,13 @@ export function permissionOptionLabel(
   option: "once" | "always" | "reject" | "confirm" | "cancel",
   t: Translate = english.t,
 ) {
-  return t(`tui.permissionDisplay.${option}`)
+  return t({
+    once: "ui.permission.allowOnce",
+    always: "tui.alwaysAllow",
+    reject: "tui.reject",
+    confirm: "ui.common.confirm",
+    cancel: "common.cancel",
+  }[option])
 }
 
 function normalizeInput(action: string, value: unknown): Dict {

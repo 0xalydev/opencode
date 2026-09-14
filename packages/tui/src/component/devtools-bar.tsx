@@ -362,11 +362,16 @@ export function DevToolsBar() {
           <PanelBox>
             <PanelTitle>{language.t("command.category.theme")}</PanelTitle>
             <Row label={language.t("tui.devtools.name")} value={themes.selected} />
-            <Row label={language.t("tui.devtools.mode")} value={language.t(`tui.devtools.${mode()}`)} />
+            <Row
+              label={language.t("tui.devtools.mode")}
+              value={language.t(mode() === "dark" ? "tui.dark" : "tui.light")}
+            />
             <For each={themePerformance()}>{(entry) => <Row label={entry.key} value={String(entry.value)} />}</For>
             <Show when={canSwitchMode()}>
               <Action onClick={() => setMode(nextMode())} hoverBackground>
-                {language.t("tui.devtools.switchMode", { mode: language.t(`tui.devtools.${nextMode()}`) })}
+                {language.t("tui.devtools.switchMode", {
+                  mode: language.t(nextMode() === "dark" ? "tui.dark" : "tui.light"),
+                })}
               </Action>
             </Show>
           </PanelBox>

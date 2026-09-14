@@ -104,13 +104,13 @@ export function Composer(props: ComposerProps) {
     commands: [
       {
         bind: "left",
-        title: language.t("tui.transcript.previousTab"),
+        title: language.t("tui.previousTab"),
         group: language.t("tui.session.composer"),
         run: () => switchTab(-1),
       },
       {
         bind: "right",
-        title: language.t("tui.transcript.nextTab"),
+        title: language.t("tui.nextTab"),
         group: language.t("tui.session.composer"),
         run: () => switchTab(1),
       },

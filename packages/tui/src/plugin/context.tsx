@@ -557,7 +557,7 @@ export function PluginProvider(props: ParentProps<{ packages: PackageSource; dir
           title:
             failed.length === 1
               ? language.t("tui.app.pluginFailed", { name: serverPluginName(first) })
-              : language.plural("tui.app.pluginsFailed", failed.length),
+              : language.plural("tui.plugins.failedCount", failed.length),
           message:
             (failed.length > 1 ? `${failed.map(serverPluginName).join(", ")}\n` : "") +
             language.t("tui.app.pluginDetails"),
