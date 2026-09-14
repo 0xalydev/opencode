@@ -1,4 +1,5 @@
 import { Catalog } from "@opencode/core/catalog"
+import { Plugin } from "@opencode/core/plugin"
 import { Effect } from "effect"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { Api } from "../api"
@@ -10,6 +11,7 @@ export const ModelHandler = HttpApiBuilder.group(Api, "server.model", (handlers)
       .handle(
         "model.list",
         Effect.fn(function* () {
+          yield* Plugin.awaitActivation
           const catalog = yield* Catalog.Service
           return yield* response(catalog.model.available())
         }),
@@ -17,6 +19,7 @@ export const ModelHandler = HttpApiBuilder.group(Api, "server.model", (handlers)
       .handle(
         "model.default",
         Effect.fn(function* () {
+          yield* Plugin.awaitActivation
           const catalog = yield* Catalog.Service
           return yield* response(catalog.model.default())
         }),

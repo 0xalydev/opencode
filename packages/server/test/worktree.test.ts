@@ -2,7 +2,7 @@ import fs from "node:fs/promises"
 import path from "node:path"
 import { $ } from "bun"
 import { expect } from "bun:test"
-import { Effect } from "effect"
+import { Effect, Schedule } from "effect"
 import { tmpdir } from "../../core/test/fixture/tmpdir"
 import { it } from "../../core/test/lib/effect"
 import { startServer } from "./fixture/server"
@@ -213,8 +213,15 @@ it.live(
       })
       const server = yield* startServer(path.join(tmp.path, "config"))
       const api = OpenCode.make({ baseUrl: server.base, headers: server.headers })
+      yield* Effect.promise(() => api.location.get({ location: { directory: source } }))
+      yield* Effect.tryPromise({
+        try: async () => {
+          const plugins = await api.plugin.list({ location: { directory: source } })
+          if (!plugins.data.some((plugin) => plugin.id === "test.worktree-delegate")) throw new Error("Plugin not ready")
+        },
+        catch: (cause) => cause,
+      }).pipe(Effect.retry(Schedule.spaced("10 millis")), Effect.timeout("2 seconds"))
       yield* Effect.promise(async () => {
-        await api.location.get({ location: { directory: source } })
         expect(await api.worktree.list({ location: { directory: target } })).toContainEqual({
           directory: path.join(destination, "delegated"),
           strategy: "target-copy",
