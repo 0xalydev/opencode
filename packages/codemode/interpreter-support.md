@@ -474,6 +474,21 @@ Nothing is exposed unless a host provides it; extension calls are not tool calls
 - [ ] Host classes. Stateful host objects are expressed as closures; a declared method table would be the next
       step if `new X()` in a program is ever needed.
 
+### Web
+
+`Web.make({ allow, methods, maxBodyBytes, timeoutMs })` is an extension exposing `fetch`. It is unavailable unless a
+host provides it.
+
+- [x] `fetch(url, init?)` with `method`, `headers` (record or pairs), and a `string`, `Uint8Array`, or
+      `URLSearchParams` body. The response is a plain object: `url`, `status`, `statusText`, `ok`, `redirected`,
+      `headers.get/has/entries`, and `text()`, `json()`, `bytes()` over the fully read body.
+- [x] Policy is enforced before any request: origins outside `allow` (or `"*"`), methods outside `methods` (default
+      `GET`, `HEAD`), non-http(s) URLs, and unsupported `init` keys (`signal`, `credentials`, ...) throw a
+      `TypeError` naming the problem. Redirects are followed by hand with each hop checked against `allow`, at most
+      five hops; 303 and 301/302-after-POST switch to GET like browsers. Bodies over `maxBodyBytes` throw a
+      `RangeError`; `timeoutMs` bounds the whole request.
+- [ ] `Headers`, `Response`, and `Request` as runtime types; streaming bodies; `AbortSignal`; `FormData`; `Blob`.
+
 ## Errors and diagnostics
 
 - [x] `Error`, `TypeError`, `RangeError`, `SyntaxError`, `ReferenceError`, `EvalError`, and `URIError`, callable with

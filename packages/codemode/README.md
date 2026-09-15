@@ -97,6 +97,26 @@ input; `onToolCallEnd` observes settled outcomes and duration. Both hooks return
 `Values.RegExp`, `Values.Map`, `Values.Set`, and `Values.Promise`. The interpreter recognizes these by class; a
 program's `new URL(...)` is a `Values.URL` wrapping the host `URL`. `Values.isValue` narrows to the data-like kinds.
 
+### `Extension.make` and `Web.make`
+
+An extension is a set of named host functions installed as globals. Arguments arrive as copies, results return as
+copies, and a function inside a result is callable the same way. Extension calls are not tool calls and are not shown
+in the tool catalog, so hosts describe them in their own instructions.
+
+`Web.make` is the built-in outbound HTTP extension. Nothing is reachable unless a host lists it:
+
+```ts
+const runtime = CodeMode.make({
+  extensions: [Web.make({ allow: ["https://api.example.com"], methods: ["GET", "POST"], maxBodyBytes: 1_048_576 })],
+})
+// program: const res = await fetch("https://api.example.com/users"); return await res.json()
+```
+
+`fetch(url, init?)` accepts `method`, `headers`, and a `string`, `Uint8Array`, or `URLSearchParams` body, and
+resolves to `{ url, status, statusText, ok, redirected, headers: { get, has, entries }, text(), json(), bytes() }`.
+Every redirect hop is checked against `allow`, bodies larger than `maxBodyBytes` are refused, and `timeoutMs` bounds
+the whole request. `Web.signature` is the model-facing signature for host instructions.
+
 ### OpenAPI tools
 
 `OpenAPI.fromSpec` converts an OpenAPI 3.x document into one tool per supported operation. Dotted `operationId` values
