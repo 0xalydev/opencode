@@ -12,6 +12,10 @@
   overflow: hidden;
 }
 
+[data-component="first-provider-models"] .settings-section {
+  gap: 8px;
+}
+
 [data-component="first-provider-models"] .settings-section[data-expanded] {
-  padding-bottom: 0;
+  padding-bottom: 8px;
 }

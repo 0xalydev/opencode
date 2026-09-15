@@ -209,6 +209,7 @@ export const dict = {
   "provider.connect.console.startFailed": "Couldn't start sign-in. Check your server connection and try again.",
   "provider.connect.models.title": "Connected to {{provider}}",
   "provider.connect.models.description": "Choose a model to start with. You can switch models anytime.",
+  "provider.connect.models.available": "Available models",
   "provider.connect.models.list": "Models available from {{provider}}",
   "provider.connect.console.retry": "Try again",
   "provider.connect.console.refreshing": "OpenCode connected. Loading your models...",

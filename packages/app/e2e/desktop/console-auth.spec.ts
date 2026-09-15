@@ -258,10 +258,13 @@ test("Console account is primary and the code is displayed without a copy-code s
   await expect(page.locator("html")).toHaveAttribute("data-color-scheme", "dark")
   await page.screenshot({ path: test.info().outputPath("console-auth-dark.png") })
   state.status = "complete"
-  await expect(dialog.getByRole("heading", { name: "Connected to OpenCode" })).toBeVisible()
-  const list = dialog.getByRole("radiogroup", { name: "Models available from OpenCode" })
-  await expect(dialog.getByRole("button", { name: "Anomaly / OpenCode", exact: true })).toBeVisible()
-  await expect(dialog.getByRole("button", { name: "Anomaly / Google", exact: true })).toBeVisible()
+  await expect(dialog.getByRole("heading", { name: "Connected to OpenCode Console" })).toBeVisible()
+  const list = dialog.getByRole("radiogroup", { name: "Models available from OpenCode Console" })
+  const available = dialog.locator('[data-component="available-models-heading"]')
+  await expect(available).toContainText("Available models")
+  await expect(available).toContainText("Anomaly")
+  await expect(dialog.getByRole("button", { name: "OpenCode", exact: true })).toBeVisible()
+  await expect(dialog.getByRole("button", { name: "Google", exact: true })).toBeVisible()
   await expect(list.getByRole("radio")).toHaveCount(models.length)
   await page.mouse.move(0, 0)
   const first = list.getByRole("radio", { name: "Console Sonnet" })
@@ -270,13 +273,13 @@ test("Console account is primary and the code is displayed without a copy-code s
   await expect(dialog.locator('[data-component="settings-list"]')).toHaveCount(2)
   await expect(first.locator('[data-slot="settings-row-title"]')).toHaveCSS("font-weight", "440")
   await expect(first).toHaveCSS("border-radius", "0px")
-  const providerHeading = dialog.locator(".settings-models-group-header").filter({ hasText: "Anomaly / OpenCode" })
+  const providerHeading = dialog.locator(".settings-models-group-header").filter({ hasText: "OpenCode" })
   await expect(providerHeading).toHaveCSS("position", "sticky")
   await expect(providerHeading).toHaveCSS("padding-bottom", "0px")
-  const google = dialog.getByRole("button", { name: "Anomaly / Google", exact: true })
-  const googleHeading = dialog.locator(".settings-models-group-header").filter({ hasText: "Anomaly / Google" })
+  const google = dialog.getByRole("button", { name: "Google", exact: true })
+  const googleHeading = dialog.locator(".settings-models-group-header").filter({ hasText: "Google" })
   await google.click()
-  await expect(googleHeading).toHaveCSS("padding-bottom", "8px")
+  await expect(googleHeading).toHaveCSS("padding-bottom", "0px")
   await google.click()
   await expect(googleHeading).toHaveCSS("padding-bottom", "0px")
   await expect(dialog.locator('[data-slot="dialog-header"]')).toHaveCSS("padding-top", "20px")
@@ -309,7 +312,7 @@ test("Manage models opens the Models settings page", async ({ page }) => {
   await dialog.getByRole("button", { name: "Continue with OpenCode Console" }).click()
   await expect(dialog.getByRole("group", { name: "Device code: TFXS-STXG" })).toBeVisible()
   state.status = "complete"
-  await expect(dialog.getByRole("heading", { name: "Connected to OpenCode" })).toBeVisible()
+  await expect(dialog.getByRole("heading", { name: "Connected to OpenCode Console" })).toBeVisible()
   await dialog.getByRole("button", { name: "Manage models", exact: true }).click()
   await expect(dialog).toBeHidden()
   await expect(page.getByRole("tab", { name: "Models", exact: true })).toHaveAttribute("aria-selected", "true")
@@ -320,9 +323,10 @@ test("a single connected provider has a non-collapsible heading", async ({ page 
   await dialog.getByRole("button", { name: "Continue with OpenCode Console" }).click()
   await expect(dialog.getByRole("group", { name: "Device code: TFXS-STXG" })).toBeVisible()
   state.status = "complete"
-  await expect(dialog.getByRole("heading", { name: "Connected to OpenCode" })).toBeVisible()
+  await expect(dialog.getByRole("heading", { name: "Connected to OpenCode Console" })).toBeVisible()
   await expect(dialog.getByRole("button", { name: "Anomaly / OpenCode", exact: true })).toHaveCount(0)
-  await expect(dialog.getByText("Anomaly / OpenCode", { exact: true })).toBeVisible()
+  await expect(dialog.locator(".settings-models-group-header")).toHaveCount(0)
+  await expect(dialog.locator('[data-component="available-models-heading"]')).toContainText("Available models")
 })
 
 test("model choice is skipped after a provider has already been connected", async ({ page }) => {
@@ -366,7 +370,7 @@ test("service-account API key form matches the Console dialog layout", async ({ 
 test("setup preserves the draft and Continue restores composer focus", async ({ page }) => {
   const { state, dialog } = await fixture(page, false, { draft: true })
   state.status = "complete"
-  await expect(dialog.getByRole("heading", { name: "Connected to OpenCode" })).toBeVisible()
+  await expect(dialog.getByRole("heading", { name: "Connected to OpenCode Console" })).toBeVisible()
   await dialog.getByRole("button", { name: "Continue", exact: true }).click()
   const composer = page.locator('[data-component="composer-editor"]')
   await expect(composer).toHaveText("Keep this draft throughout sign-in")
@@ -384,7 +388,7 @@ test("catalog refresh failure retries without asking for authorization again", a
   await expect(dialog.getByRole("alert")).toContainText("Your account is connected, but we couldn't load your models")
   state.modelError = false
   await dialog.getByRole("button", { name: "Try again", exact: true }).click()
-  await expect(dialog.getByRole("heading", { name: "Connected to OpenCode" })).toBeVisible()
+  await expect(dialog.getByRole("heading", { name: "Connected to OpenCode Console" })).toBeVisible()
   expect(state.starts).toBe(1)
 })
 
@@ -396,7 +400,7 @@ test("status request failure resumes the existing attempt", async ({ page }) => 
   state.statusError = false
   state.status = "complete"
   await dialog.getByRole("button", { name: "Try again", exact: true }).click()
-  await expect(dialog.getByRole("heading", { name: "Connected to OpenCode" })).toBeVisible()
+  await expect(dialog.getByRole("heading", { name: "Connected to OpenCode Console" })).toBeVisible()
   expect(state.starts).toBe(1)
   expect(state.cancelled).toEqual([])
 })
@@ -468,7 +472,7 @@ test("an authorized workspace without models stays connected and can refresh", a
   await expect(dialog.getByText(/this Console workspace has no available models/)).toBeVisible()
   state.models = true
   await dialog.getByRole("button", { name: "Refresh models" }).click()
-  await expect(dialog.getByRole("heading", { name: "Connected to OpenCode" })).toBeVisible()
+  await expect(dialog.getByRole("heading", { name: "Connected to OpenCode Console" })).toBeVisible()
   expect(state.starts).toBe(1)
 })
 

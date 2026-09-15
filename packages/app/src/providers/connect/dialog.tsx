@@ -1,4 +1,5 @@
 import { Button } from "@opencode/ui/button"
+import { Badge } from "@opencode/ui/badge"
 import { useDialog } from "@opencode/ui/context/dialog"
 import { Icon } from "@opencode/ui/icon"
 import { List } from "@opencode/ui/list"
@@ -431,28 +432,42 @@ function ProviderConnection(props: {
       .filter((model) => connected.has(model.providerID) && model.enabled && model.status !== "deprecated")
       .toSorted((a, b) => a.providerID.localeCompare(b.providerID) || a.id.localeCompare(b.id))
   })
+  const connectionProviders = createMemo(() => {
+    const location = initialDirectory ? { directory: initialDirectory } : undefined
+    return (data.location.provider.list(location) ?? []).filter(
+      (provider) => provider.id === props.provider || provider.integrationID === props.provider,
+    )
+  })
   const connectionModels = createMemo(() => {
     const location = initialDirectory ? { directory: initialDirectory } : undefined
-    const ids = new Set(
-      (data.location.provider.list(location) ?? [])
-        .filter((provider) => provider.id === props.provider || provider.integrationID === props.provider)
-        .map((provider) => provider.id),
-    )
+    const ids = new Set(connectionProviders().map((provider) => provider.id))
     return (data.location.model.list(location) ?? []).filter(
       (model) => ids.has(model.providerID) && model.enabled && model.status !== "deprecated",
     )
   })
   const connectionGroups = createMemo(() => {
-    const location = initialDirectory ? { directory: initialDirectory } : undefined
     const models = connectionModels()
-    return (data.location.provider.list(location) ?? [])
-      .filter((provider) => provider.id === props.provider || provider.integrationID === props.provider)
+    return connectionProviders()
       .map((provider) => ({ provider, models: models.filter((model) => model.providerID === provider.id) }))
       .filter((group) => group.models.length > 0)
   })
+  const managedProviders = createMemo(() => {
+    if (props.provider !== "opencode") return
+    const root = connectionProviders().find((provider) => provider.id === "opencode")
+    const suffix = " / OpenCode"
+    if (!root?.name.endsWith(suffix)) return
+    const workspace = root.name.slice(0, -suffix.length).trim()
+    if (!workspace) return
+    return { workspace, prefix: `${workspace} / ` }
+  })
+  const connectionGroupName = (name: string) => {
+    const managed = managedProviders()
+    return managed && name.startsWith(managed.prefix) ? name.slice(managed.prefix.length) : name
+  }
   const modelKey = (model: { providerID: string; id: string }) => `${model.providerID}:${model.id}`
   const selectedModel = () => connectionModels().find((model) => modelKey(model) === consoleState.selectedModel)
-  const connectedProviderName = () => (props.provider === "opencode" ? "OpenCode" : provider().name)
+  const connectedProviderName = () =>
+    props.provider === "opencode" ? language.t("provider.connect.console.name") : provider().name
   const recommended = () => {
     const current = props.selection?.current()
     if (initialModel && current?.id === initialModel.id && current.provider.id === initialModel.provider.id)
@@ -945,6 +960,41 @@ function ProviderConnection(props: {
     )
   }
 
+  function ConnectionModelList(props: { items: ReturnType<typeof connectionModels> }) {
+    return (
+      <SettingsList>
+        <For each={props.items}>
+          {(model) => {
+            const selected = () => consoleState.selectedModel === modelKey(model)
+            return (
+              <button
+                type="button"
+                role="radio"
+                data-component="settings-row"
+                data-first-provider-model=""
+                data-selected={selected() ? "" : undefined}
+                aria-checked={selected()}
+                class="-mx-4 w-[calc(100%+32px)] px-4 text-start focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none"
+                onClick={() => setConsoleState("selectedModel", modelKey(model))}
+              >
+                <div data-slot="settings-row-copy">
+                  <div data-slot="settings-row-title">
+                    <span class="min-w-0 truncate">{model.name}</span>
+                  </div>
+                </div>
+                <div data-slot="settings-row-control" class="size-4">
+                  <Show when={selected()}>
+                    <Icon name="check" size="small" class="shrink-0 text-v2-icon-icon-base" />
+                  </Show>
+                </div>
+              </button>
+            )
+          }}
+        </For>
+      </SettingsList>
+    )
+  }
+
   function FirstConnectionModels() {
     return (
       <div data-component="first-provider-models" class="flex min-h-0 flex-1 flex-col px-3">
@@ -955,32 +1005,42 @@ function ProviderConnection(props: {
           data-component="first-provider-model-scroll"
           class="settings-panel settings-models min-h-0 flex-1 overflow-y-auto pb-4"
         >
+          <div data-component="available-models-heading" class="flex items-center gap-1.5">
+            <span class="text-[13px] font-[530] leading-4 text-v2-text-text-base">
+              {language.t("provider.connect.models.available")}
+            </span>
+            <Show when={managedProviders()}>{(managed) => <Badge>{managed().workspace}</Badge>}</Show>
+          </div>
           <div
             role="radiogroup"
             aria-label={language.t("provider.connect.models.list", { provider: connectedProviderName() })}
           >
-            <For each={connectionGroups()}>
-              {(group) => {
-                const collapsible = () => connectionGroups().length > 1
-                const expanded = () => !collapsible() || !consoleState.collapsed[group.provider.id]
-                const label = () => (
-                  <span class="settings-models-group-label">
-                    <Show
-                      when={group.provider.id === "opencode"}
-                      fallback={<ProviderIcon id={group.provider.id} class="size-4 shrink-0" />}
-                    >
-                      <OpenCodeLogo class="size-4 shrink-0" />
-                    </Show>
-                    <span class="settings-section-title">{group.provider.name}</span>
-                  </span>
-                )
-                return (
-                  <section class="settings-section" data-expanded={expanded() ? "" : undefined}>
-                    <h3
-                      class="settings-models-group-header sticky top-0 z-[1] box-content bg-v2-background-bg-layer-01"
-                      classList={{ "pb-2": collapsible() && !expanded() }}
-                    >
-                      <Show when={collapsible()} fallback={<div class="settings-models-group-trigger">{label()}</div>}>
+            <Show
+              when={connectionGroups().length > 1}
+              fallback={<ConnectionModelList items={connectionGroups()[0]?.models ?? []} />}
+            >
+              <For each={connectionGroups()}>
+                {(group) => {
+                  const expanded = () => !consoleState.collapsed[group.provider.id]
+                  const label = () => (
+                    <span class="settings-models-group-label">
+                      <Show when={!managedProviders()}>
+                        <Show
+                          when={group.provider.id === "opencode"}
+                          fallback={<ProviderIcon id={group.provider.id} class="size-4 shrink-0" />}
+                        >
+                          <OpenCodeLogo class="size-4 shrink-0" />
+                        </Show>
+                      </Show>
+                      <span class="settings-section-title">{connectionGroupName(group.provider.name)}</span>
+                    </span>
+                  )
+                  return (
+                    <section class="settings-section" data-expanded={expanded() ? "" : undefined}>
+                      <h3
+                        class="settings-models-group-header sticky top-0 z-[1] box-content bg-v2-background-bg-layer-01"
+                        classList={{ "pb-2": !expanded() && !managedProviders() }}
+                      >
                         <button
                           type="button"
                           class="settings-models-group-trigger"
@@ -996,44 +1056,15 @@ function ProviderConnection(props: {
                           </span>
                           {label()}
                         </button>
+                      </h3>
+                      <Show when={expanded()}>
+                        <ConnectionModelList items={group.models} />
                       </Show>
-                    </h3>
-                    <Show when={expanded()}>
-                      <SettingsList>
-                        <For each={group.models}>
-                          {(model) => {
-                            const selected = () => consoleState.selectedModel === modelKey(model)
-                            return (
-                              <button
-                                type="button"
-                                role="radio"
-                                data-component="settings-row"
-                                data-first-provider-model=""
-                                data-selected={selected() ? "" : undefined}
-                                aria-checked={selected()}
-                                class="-mx-4 w-[calc(100%+32px)] px-4 text-start focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none"
-                                onClick={() => setConsoleState("selectedModel", modelKey(model))}
-                              >
-                                <div data-slot="settings-row-copy">
-                                  <div data-slot="settings-row-title">
-                                    <span class="min-w-0 truncate">{model.name}</span>
-                                  </div>
-                                </div>
-                                <div data-slot="settings-row-control" class="size-4">
-                                  <Show when={selected()}>
-                                    <Icon name="check" size="small" class="shrink-0 text-v2-icon-icon-base" />
-                                  </Show>
-                                </div>
-                              </button>
-                            )
-                          }}
-                        </For>
-                      </SettingsList>
-                    </Show>
-                  </section>
-                )
-              }}
-            </For>
+                    </section>
+                  )
+                }}
+              </For>
+            </Show>
           </div>
         </div>
         <div
