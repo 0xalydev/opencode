@@ -161,6 +161,8 @@ export type SessionActive = { type: "running" }
 
 export type SessionInboxDelivery = "steer" | "queue"
 
+export type CommandOutcome = { type: "immediate" } | { type: "prompt"; inboxID: string }
+
 export type SessionInboxSyntheticPayload = { text: string; description?: string; metadata?: { [x: string]: JsonValue } }
 
 export type SessionInboxCompactionPayload = {}
@@ -4107,6 +4109,7 @@ export type SessionCommandInput = {
   readonly sessionID: { readonly sessionID: string }["sessionID"]
   readonly name: {
     readonly name: string
+    readonly id?: string | null
     readonly text: string
     readonly files?: ReadonlyArray<{
       readonly uri: string
@@ -4124,8 +4127,29 @@ export type SessionCommandInput = {
     }>
     readonly delivery?: ("steer" | "queue") | null
   }["name"]
+  readonly id?: {
+    readonly name: string
+    readonly id?: string | null
+    readonly text: string
+    readonly files?: ReadonlyArray<{
+      readonly uri: string
+      readonly name?: string
+      readonly description?: string
+      readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
+    }>
+    readonly agents?: ReadonlyArray<{
+      readonly name: string
+      readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
+    }>
+    readonly skills?: ReadonlyArray<{
+      readonly id: string
+      readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
+    }>
+    readonly delivery?: ("steer" | "queue") | null
+  }["id"]
   readonly text: {
     readonly name: string
+    readonly id?: string | null
     readonly text: string
     readonly files?: ReadonlyArray<{
       readonly uri: string
@@ -4145,6 +4169,7 @@ export type SessionCommandInput = {
   }["text"]
   readonly files?: {
     readonly name: string
+    readonly id?: string | null
     readonly text: string
     readonly files?: ReadonlyArray<{
       readonly uri: string
@@ -4164,6 +4189,7 @@ export type SessionCommandInput = {
   }["files"]
   readonly agents?: {
     readonly name: string
+    readonly id?: string | null
     readonly text: string
     readonly files?: ReadonlyArray<{
       readonly uri: string
@@ -4183,6 +4209,7 @@ export type SessionCommandInput = {
   }["agents"]
   readonly skills?: {
     readonly name: string
+    readonly id?: string | null
     readonly text: string
     readonly files?: ReadonlyArray<{
       readonly uri: string
@@ -4202,6 +4229,7 @@ export type SessionCommandInput = {
   }["skills"]
   readonly delivery?: {
     readonly name: string
+    readonly id?: string | null
     readonly text: string
     readonly files?: ReadonlyArray<{
       readonly uri: string
@@ -4221,7 +4249,7 @@ export type SessionCommandInput = {
   }["delivery"]
 }
 
-export type SessionCommandOutput = void
+export type SessionCommandOutput = { data: CommandOutcome }["data"]
 
 export type SessionSkillInput = {
   readonly sessionID: { readonly sessionID: string }["sessionID"]
