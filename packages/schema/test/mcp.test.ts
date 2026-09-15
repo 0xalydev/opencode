@@ -35,3 +35,18 @@ describe("Mcp resources", () => {
     })
   })
 })
+
+describe("Mcp OAuth", () => {
+  test("decodes the authorization-server metadata override and omits it when absent", () => {
+    const value = Schema.decodeUnknownSync(Mcp.OAuthConfig)({
+      client_id: "client",
+      auth_server_metadata_url: "https://auth.example.com/.well-known/oauth-authorization-server",
+    })
+    expect(value.auth_server_metadata_url).toBe("https://auth.example.com/.well-known/oauth-authorization-server")
+    expect(Schema.encodeSync(Mcp.OAuthConfig)(value)).toEqual({
+      client_id: "client",
+      auth_server_metadata_url: "https://auth.example.com/.well-known/oauth-authorization-server",
+    })
+    expect(Schema.encodeSync(Mcp.OAuthConfig)(Schema.decodeUnknownSync(Mcp.OAuthConfig)({}))).toEqual({})
+  })
+})

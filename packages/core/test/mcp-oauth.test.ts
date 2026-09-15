@@ -352,6 +352,123 @@ describe("MCP OAuth", () => {
     expect(url.pathname).toBe("/as/authorize")
   })
 
+  test("uses the configured authorization-server metadata instead of discovery", async () => {
+    const authorization = Bun.serve({
+      port: 0,
+      fetch(request) {
+        const url = new URL(request.url)
+        if (url.pathname !== "/custom/as-metadata") return new Response(null, { status: 404 })
+        return Response.json({
+          issuer: url.origin,
+          authorization_endpoint: `${url.origin}/authorize`,
+          token_endpoint: `${url.origin}/token`,
+          response_types_supported: ["code"],
+        })
+      },
+    })
+    const probes: string[] = []
+    const resource = Bun.serve({
+      port: 0,
+      fetch(request) {
+        probes.push(`${request.method} ${new URL(request.url).pathname}`)
+        return new Response(null, { status: 404 })
+      },
+    })
+    try {
+      const { url } = await Effect.runPromise(
+        Effect.scoped(
+          start(`${resource.url.origin}/mcp`, {
+            client_id: "client",
+            auth_server_metadata_url: `${authorization.url.origin}/custom/as-metadata`,
+          }),
+        ),
+      )
+      expect(url.origin).toBe(authorization.url.origin)
+      expect(url.pathname).toBe("/authorize")
+      // The override replaces the 401 probe and the well-known lookups entirely.
+      expect(probes).toEqual([])
+    } finally {
+      resource.stop(true)
+      authorization.stop(true)
+    }
+  })
+
+  test("refreshes through the configured authorization server", async () => {
+    const tokenRequests: URLSearchParams[] = []
+    const authorization = Bun.serve({
+      port: 0,
+      async fetch(request) {
+        const url = new URL(request.url)
+        if (url.pathname === "/custom/as-metadata")
+          return Response.json({
+            issuer: url.origin,
+            authorization_endpoint: `${url.origin}/authorize`,
+            token_endpoint: `${url.origin}/token`,
+            response_types_supported: ["code"],
+          })
+        if (request.method === "POST" && url.pathname === "/token") {
+          tokenRequests.push(new URLSearchParams(await request.text()))
+          return Response.json({ access_token: "next", token_type: "Bearer" })
+        }
+        return new Response(null, { status: 404 })
+      },
+    })
+    const resource = Bun.serve({ port: 0, fetch: () => new Response(null, { status: 404 }) })
+    try {
+      const url = `${resource.url.origin}/mcp`
+      const config = new ConfigMCP.Remote({
+        type: "remote",
+        url,
+        oauth: {
+          client_id: "client",
+          auth_server_metadata_url: `${authorization.url.origin}/custom/as-metadata`,
+        },
+      })
+      const oauthProvider = await connectProvider(
+        config,
+        memoryCredentials([credential({ access: "expired", refresh: "refresh", url })]),
+      )
+      const result = await auth(oauthProvider, { serverUrl: url })
+      expect(result).toBe("AUTHORIZED")
+      expect(tokenRequests).toHaveLength(1)
+      expect(tokenRequests[0]?.get("grant_type")).toBe("refresh_token")
+      expect(tokenRequests[0]?.get("resource")).toBe(url)
+    } finally {
+      resource.stop(true)
+      authorization.stop(true)
+    }
+  })
+
+  test("rejects an invalid authorization-server metadata override", async () => {
+    await expect(
+      Effect.runPromise(
+        Effect.scoped(start(authServer, { client_id: "client", auth_server_metadata_url: "not a url" })),
+      ),
+    ).rejects.toThrow("auth_server_metadata_url")
+    const authorization = Bun.serve({
+      port: 0,
+      fetch(request) {
+        const url = new URL(request.url)
+        if (url.pathname !== "/as-metadata") return new Response(null, { status: 404 })
+        return Response.json({ issuer: url.origin, authorization_endpoint: `${url.origin}/authorize` })
+      },
+    })
+    try {
+      await expect(
+        Effect.runPromise(
+          Effect.scoped(
+            start(authServer, {
+              client_id: "client",
+              auth_server_metadata_url: `${authorization.url.origin}/as-metadata`,
+            }),
+          ),
+        ),
+      ).rejects.toThrow("token_endpoint")
+    } finally {
+      authorization.stop(true)
+    }
+  })
+
   test("forwards iss from the redirect so issuer-advertising servers can complete", async () => {
     const { server } = authorizationServer({ authorization_response_iss_parameter_supported: true })
     const result = await Effect.runPromise(

@@ -230,6 +230,29 @@ When a provider gives you client credentials, use V2's snake_case OAuth fields:
 | `scope` | Space-delimited scopes to request. |
 | `callback_port` | Local callback port from `1` through `65535`. An available ephemeral port is the default. |
 | `redirect_uri` | Pre-registered loopback URI whose path and port reach the local callback listener. |
+| `auth_server_metadata_url` | Authorization-server metadata document used instead of protected-resource discovery. |
+
+When the server publishes no usable authorization-server metadata, point `auth_server_metadata_url` at the metadata document directly:
+
+```jsonc title="opencode.jsonc"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "company-tools": {
+        "type": "remote",
+        "url": "https://mcp.example.com/mcp",
+        "oauth": {
+          "client_id": "{env:MCP_CLIENT_ID}",
+          "auth_server_metadata_url": "https://auth.example.com/.well-known/oauth-authorization-server",
+        },
+      },
+    },
+  },
+}
+```
+
+The URL must use `https://` (`http://` is allowed only for loopback). Only use a metadata endpoint you trust.
 
 Remove stored OAuth credentials when you need to sign in again or switch accounts:
 

@@ -8,6 +8,7 @@ import {
   extractWWWAuthenticateParams,
   parseErrorResponse,
   UnauthorizedError,
+  type AuthorizationServerMetadata,
   type FetchLike,
   type OAuthClientProvider,
   type OAuthDiscoveryState,
@@ -237,6 +238,56 @@ export const toTokens = (credential: Credential.OAuth): StoredOAuthTokens => {
   }
 }
 
+// An explicitly configured authorization-server metadata document replaces protected-resource
+// discovery. Trusted configuration for servers that publish no usable metadata: the document's
+// issuer identifies the authorization server, while token requests still bind to the configured URL.
+const isHttpUrl = (value: unknown): value is string => {
+  if (typeof value !== "string" || !URL.canParse(value)) return false
+  const protocol = new URL(value).protocol
+  return protocol === "http:" || protocol === "https:"
+}
+
+const requireMetadataUrl = (value: string) => {
+  if (!URL.canParse(value)) throw new Error(`Invalid oauth.auth_server_metadata_url: not an absolute URL`)
+  const url = new URL(value)
+  const loopback = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]"
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback))
+    throw new Error(`Invalid oauth.auth_server_metadata_url: must use https:// (http:// is allowed only for loopback)`)
+  return url
+}
+
+const requireAuthorizationServerMetadata = (input: unknown): AuthorizationServerMetadata => {
+  if (typeof input !== "object" || input === null)
+    throw new Error("Invalid oauth.auth_server_metadata_url document: expected a JSON object")
+  const document = input as Partial<AuthorizationServerMetadata>
+  if (!isHttpUrl(document.issuer))
+    throw new Error("Invalid oauth.auth_server_metadata_url document: issuer must be an absolute http(s) URL")
+  if (!isHttpUrl(document.authorization_endpoint))
+    throw new Error(
+      "Invalid oauth.auth_server_metadata_url document: authorization_endpoint must be an absolute http(s) URL",
+    )
+  if (!isHttpUrl(document.token_endpoint))
+    throw new Error("Invalid oauth.auth_server_metadata_url document: token_endpoint must be an absolute http(s) URL")
+  return input as AuthorizationServerMetadata
+}
+
+const loadAuthorizationServerMetadata = async (
+  metadataUrl: string,
+  serverUrl: string,
+  fetchFn: FetchLike,
+): Promise<OAuthDiscoveryState> => {
+  const response = await fetchFn(requireMetadataUrl(metadataUrl), { headers: { accept: "application/json" } })
+  if (!response.ok) throw new Error(`oauth.auth_server_metadata_url request failed with HTTP ${response.status}`)
+  const metadata = requireAuthorizationServerMetadata(await response.json())
+  const resource = new URL(serverUrl)
+  resource.hash = ""
+  return {
+    authorizationServerUrl: metadata.issuer,
+    authorizationServerMetadata: metadata,
+    resourceMetadata: { resource: resource.toString() },
+  }
+}
+
 export const connectProvider = Effect.fnUntraced(function* (input: {
   readonly config: typeof ConfigMCP.Remote.Type
   readonly integrationID: Integration.ID
@@ -253,8 +304,16 @@ export const connectProvider = Effect.fnUntraced(function* (input: {
   }
   // Refresh tokens rotate and the row is shared across connections: only drop it while it still holds ours.
   let presented = found.value.refresh
+  const metadataUrl = (input.config.oauth || undefined)?.auth_server_metadata_url
+  const discovery = metadataUrl
+    ? yield* Effect.tryPromise({
+        try: () => loadAuthorizationServerMetadata(metadataUrl, input.config.url, fetch),
+        catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+      })
+    : undefined
   return provider({
     config: input.config,
+    ...(discovery ? { discovery } : {}),
     invalidate: async (scope) => {
       if (scope === "verifier" || scope === "discovery") return
       const oauth = await read()
@@ -361,36 +420,49 @@ export const authorize = (input: {
     })
     yield* Effect.addFinalizer(() => Effect.sync(() => server.close()))
 
+    // A configured metadata document is authoritative: it replaces the 401 probe and
+    // protected-resource discovery entirely.
+    const metadataUrl = oauth?.auth_server_metadata_url
+    if (metadataUrl)
+      yield* Effect.logInfo("mcp oauth using configured authorization server metadata", { ...fields, metadataUrl })
+
     // The server's 401 names where its resource metadata lives and which scopes it wants; without it
     // discovery can only guess the well-known path, which not every server layout answers.
-    const challenge = yield* Effect.tryPromise((signal) =>
-      fetchFn(input.config.url, {
-        method: "POST",
-        headers: {
-          ...input.config.headers,
-          "content-type": "application/json",
-          accept: "application/json, text/event-stream",
-        },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: 0,
-          method: "initialize",
-          params: { protocolVersion: LATEST_PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: "opencode" } },
-        }),
-        signal,
-      }),
-    ).pipe(
-      Effect.map((response) => extractWWWAuthenticateParams(response)),
-      Effect.timeout("5 seconds"),
-      Effect.orElseSucceed(() => ({ resourceMetadataUrl: undefined, scope: undefined })),
-    )
+    const challenge = metadataUrl
+      ? { resourceMetadataUrl: undefined, scope: undefined }
+      : yield* Effect.tryPromise((signal) =>
+          fetchFn(input.config.url, {
+            method: "POST",
+            headers: {
+              ...input.config.headers,
+              "content-type": "application/json",
+              accept: "application/json, text/event-stream",
+            },
+            body: JSON.stringify({
+              jsonrpc: "2.0",
+              id: 0,
+              method: "initialize",
+              params: { protocolVersion: LATEST_PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: "opencode" } },
+            }),
+            signal,
+          }),
+        ).pipe(
+          Effect.map((response) => extractWWWAuthenticateParams(response)),
+          Effect.timeout("5 seconds"),
+          Effect.orElseSucceed(() => ({ resourceMetadataUrl: undefined, scope: undefined })),
+        )
     const resourceMetadataUrl = challenge.resourceMetadataUrl
     // CIMD needs the server to advertise it and accept public clients, and our published document only
     // lists the loopback redirect; a configured client_id always wins.
-    const discovery = yield* Effect.tryPromise({
-      try: () => discoverOAuthServerInfo(input.config.url, { resourceMetadataUrl, fetchFn }),
-      catch: (error) => (error instanceof Error ? error : new Error(String(error))),
-    })
+    const discovery: OAuthDiscoveryState = metadataUrl
+      ? yield* Effect.tryPromise({
+          try: () => loadAuthorizationServerMetadata(metadataUrl, input.config.url, fetchFn),
+          catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+        })
+      : yield* Effect.tryPromise({
+          try: () => discoverOAuthServerInfo(input.config.url, { resourceMetadataUrl, fetchFn }),
+          catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+        })
     const cimd =
       !oauth?.client_id &&
       !oauth?.redirect_uri &&

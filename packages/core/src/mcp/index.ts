@@ -383,24 +383,27 @@ export const layer = (options?: Options) =>
           yield* bus.publish(McpEvent.StatusChanged, { server: name })
           const scope = yield* Scope.fork(root)
           entry.scope = scope
-          const authProvider = yield* connectProvider(entry)
           const { McpClient } = yield* Effect.promise(() => import("./client.js"))
           // List tools as part of connect so a failure here marks the server failed rather than
           // leaving it connected with a silently empty tool list and no path to recover.
-          const result = yield* McpClient.connect(
-            name,
-            entry.config,
-            location.directory,
-            authProvider,
-            elicitation,
-            options?.clientInfo,
-          ).pipe(
-            Effect.flatMap((connection) => connection.tools().pipe(Effect.map((tools) => ({ connection, tools })))),
-            // A stdio server is spawned on this location's execution plane, not the host's.
-            Effect.provideService(Environment.Service, environment),
-            Scope.provide(scope),
-            Effect.exit,
-          )
+          const result = yield* Effect.gen(function* () {
+            // Inside the exit capture so a misconfigured OAuth override fails the server with its
+            // message instead of escaping startServer.
+            const authProvider = yield* connectProvider(entry)
+            return yield* McpClient.connect(
+              name,
+              entry.config,
+              location.directory,
+              authProvider,
+              elicitation,
+              options?.clientInfo,
+            ).pipe(
+              Effect.flatMap((connection) => connection.tools().pipe(Effect.map((tools) => ({ connection, tools })))),
+              // A stdio server is spawned on this location's execution plane, not the host's.
+              Effect.provideService(Environment.Service, environment),
+              Scope.provide(scope),
+            )
+          }).pipe(Effect.exit)
           if (Exit.isSuccess(result)) {
             entry.client = result.value.connection
             entry.tools = result.value.tools.map((tool) => toTool(name, entry, tool))

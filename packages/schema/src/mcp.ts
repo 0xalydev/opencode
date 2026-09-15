@@ -44,6 +44,10 @@ export class OAuthConfig extends Schema.Class<OAuthConfig>("Mcp.OAuthConfig")({
   scope: Schema.String.pipe(optional),
   callback_port: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 65535 })).pipe(optional),
   redirect_uri: Schema.String.pipe(optional),
+  auth_server_metadata_url: Schema.String.pipe(optional).annotate({
+    description:
+      "HTTPS authorization-server metadata document used authoritatively instead of protected-resource discovery. Use it only for a metadata endpoint you trust.",
+  }),
 }) {}
 
 export class RemoteConfig extends Schema.Class<RemoteConfig>("Mcp.RemoteConfig")({
