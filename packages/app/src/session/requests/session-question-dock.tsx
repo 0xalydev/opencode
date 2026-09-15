@@ -483,7 +483,8 @@ export const SessionQuestionDock: Component<{ request: FormInfo; onSubmit: () =>
       title: language.t("ui.common.back"),
       keybind: IS_MAC ? "mod+[" : "alt+arrowleft",
       hidden: true,
-      disabled: store.tab <= 0 || sending(),
+      // Stay registered while sending so the shortcut does not fall through to history navigation.
+      disabled: store.tab <= 0,
       when: () => store.tab > 0,
       onSelect: back,
     },
