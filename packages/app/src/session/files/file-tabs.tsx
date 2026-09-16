@@ -3,6 +3,7 @@ import { createStore } from "solid-js/store"
 import { Dynamic } from "solid-js/web"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import type { FileSearchHandle } from "@opencode/session-ui/file"
+import { Markdown } from "@opencode/session-ui/markdown"
 import { useFileComponent } from "@opencode/ui/context/file"
 import { cloneSelectedLineRange, previewSelectedLines } from "@opencode/session-ui/pierre/selection-bridge"
 import { createLineCommentControllerV2 } from "@opencode/session-ui/v2/line-comment-annotations-v2"
@@ -454,7 +455,15 @@ export function SessionFileView(props: SessionFileViewProps) {
     <div class="mt-3 relative h-full min-h-0">
       <ScrollView class="h-full" viewportRef={scrollSync.setViewport} onScroll={scrollSync.handleScroll}>
         <Switch>
-          <Match when={state()?.loaded}>{renderFile(contents())}</Match>
+          <Match when={state()?.loaded}>
+            {path()?.toLowerCase().endsWith(".md") ? (
+              <div class="px-6 py-4 pb-40">
+                <Markdown text={contents()} cacheKey={cacheKey()} />
+              </div>
+            ) : (
+              renderFile(contents())
+            )}
+          </Match>
           <Match when={state()?.loading}>
             <div class="px-6 py-4 text-text-weak">{language.t("common.loading")}…</div>
           </Match>

@@ -55,7 +55,10 @@ test("opens and searches project files inline", async ({ page }) => {
         { name: "src", path: "src", absolute: `${directory}/src`, type: "directory", ignored: false },
       ]
     },
-    fileContent: (path) => ({ type: "text", content: `contents:${path}` }),
+    fileContent: (path) => ({
+      type: "text",
+      content: path === "README.md" ? "# Rendered README\n\ncontents:README.md" : `contents:${path}`,
+    }),
     findFiles: (input) => {
       searches.push(input)
       return input.query === "nested" ? ["src/nested.ts"] : []
@@ -126,6 +129,7 @@ test("opens and searches project files inline", async ({ page }) => {
   await expect(panel.getByRole("tab", { name: "README.md" }).locator("..")).toHaveCSS("padding-inline-end", "4px")
   await expect(panel.getByRole("tab", { name: "README.md" }).locator("..")).toHaveCSS("gap", "8px")
   await expect(sidebarToggle).toBeEnabled()
+  await expect(panel.getByRole("heading", { name: "Rendered README" })).toBeVisible()
   await expect(panel.getByText("contents:README.md", { exact: true })).toBeVisible()
   await expect(sidebar).toHaveCount(0)
 
