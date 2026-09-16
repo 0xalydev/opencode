@@ -7,7 +7,6 @@ import type { HttpMiddleware, Transport, TransportPrepareInput } from "./index.j
 import * as ProviderShared from "../../protocols/shared.js"
 import {
   AIError,
-  DEFAULT_HTTP_TIMEOUT_MS,
   mergeJsonRecords,
   TransportError,
   type HttpContext,
@@ -130,8 +129,9 @@ export const httpJson = <Body, Frame>(input: HttpJsonInput<Body, Frame>): HttpJs
     }),
 })
 
+// Defaults are resolved when the request is built; an unset value here means no timeout.
 const timeoutDuration = (value: HttpTimeout | undefined) =>
-  value === false ? Duration.infinity : Duration.millis(value ?? DEFAULT_HTTP_TIMEOUT_MS)
+  value === false || value === undefined ? Duration.infinity : Duration.millis(value)
 
 export const sseJson = {
   id: "http-json/sse",

@@ -47,9 +47,6 @@ export const mergeProviderOptions = (
 export const HttpTimeout = Schema.Union([Schema.Number.check(Schema.isGreaterThan(0)), Schema.Literal(false)])
 export type HttpTimeout = Schema.Schema.Type<typeof HttpTimeout>
 
-/** Applied to `headerTimeout` and `chunkTimeout` when a request leaves them unset. */
-export const DEFAULT_HTTP_TIMEOUT_MS = 300_000
-
 export class HttpOptions extends Schema.Class<HttpOptions>("AI.HttpOptions")({
   body: Schema.optional(JsonSchema),
   headers: Schema.optional(Schema.Record(Schema.String, Schema.String)),

@@ -140,12 +140,13 @@ export function nativeSettings(settings: Settings): Settings {
 }
 
 const decodeTimeout = Schema.decodeUnknownOption(HttpTimeout)
+const DEFAULT_TIMEOUT_MS = 300_000
 
-/** Request timeouts from provider settings; invalid values are dropped so the transport default applies. */
+/** Request timeouts from provider settings; unset or invalid values take opencode's default. */
 export function timeouts(settings: Readonly<Record<string, unknown>>) {
   return {
-    headerTimeout: Option.getOrUndefined(decodeTimeout(settings.headerTimeout)),
-    chunkTimeout: Option.getOrUndefined(decodeTimeout(settings.chunkTimeout)),
+    headerTimeout: Option.getOrElse(decodeTimeout(settings.headerTimeout), () => DEFAULT_TIMEOUT_MS),
+    chunkTimeout: Option.getOrElse(decodeTimeout(settings.chunkTimeout), () => DEFAULT_TIMEOUT_MS),
   }
 }
 
