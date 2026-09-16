@@ -16,6 +16,8 @@ export const Outcome = Command.Outcome
 export type Outcome = Command.Outcome
 export { Event } from "@opencode/schema/command"
 
+export const immediate: Outcome = { type: "immediate" }
+
 export function prompted(admitted: { readonly id: SessionMessage.ID }): Outcome {
   return { type: "prompt", inboxID: admitted.id }
 }
@@ -99,13 +101,10 @@ export const layer = Layer.effect(
           Effect.tapError((error) => Effect.logError("command execution failed", { command: input.name, error })),
           Effect.mapError((error) => new ExecutionError({ command: input.name, message: errorMessage(error) })),
         )
-        if (outcome === undefined) return { type: "immediate" as const }
+        if (outcome === undefined) return immediate
         // Plugin callbacks cross a JavaScript boundary; only a well-formed outcome is reportable.
         if (!isOutcome(outcome))
-          return yield* new ExecutionError({
-            command: input.name,
-            message: `Command returned an invalid outcome (${typeof outcome})`,
-          })
+          return yield* new ExecutionError({ command: input.name, message: "Command returned an invalid outcome" })
         // Clients follow the invocation ID, so a command that admitted under another ID (typically by
         // omitting `id: messageID` from its prompt) would leave them waiting forever. Fail loudly instead.
         if (outcome.type === "prompt" && outcome.inboxID !== input.invocation.messageID)

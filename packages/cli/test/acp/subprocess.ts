@@ -4,6 +4,7 @@ import type {
   SessionConfigOption,
   SessionConfigSelectOption,
 } from "@agentclientprotocol/sdk"
+import { Schema } from "effect"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -65,12 +66,35 @@ description: Verifier compatibility skill.
 # Verifier Skill
 `
 
+/** The subset of an OpenAI-compatible chat request that tests inspect. */
+const ChatRequest = Schema.Struct({
+  messages: Schema.Array(
+    Schema.Struct({
+      role: Schema.String,
+      content: Schema.Union([
+        Schema.String,
+        Schema.Array(Schema.Struct({ text: Schema.String.pipe(Schema.optional) })),
+      ]).pipe(Schema.optional),
+    }),
+  ),
+  tools: Schema.Array(Schema.Unknown).pipe(Schema.optional),
+})
+export type ChatRequest = typeof ChatRequest.Type
+const decodeChatRequest = Schema.decodeUnknownSync(ChatRequest)
+
+/** Text of the most recent user message. */
+export function lastUserText(request: ChatRequest) {
+  const content = request.messages.findLast((message) => message.role === "user")?.content
+  if (!Array.isArray(content)) return content
+  return content.flatMap((part) => (part.text === undefined ? [] : [part.text])).join("")
+}
+
 export type FixtureOptions = {
   readonly skill?: string
   /** Extra opencode.json entries merged over the verifier config. */
-  readonly config?: Record<string, unknown>
+  readonly config?: Record<string, Schema.Json>
   /** Produce the scripted completion text; awaiting here holds the model response. */
-  readonly respond?: (request: unknown) => string | Promise<string>
+  readonly respond?: (request: ChatRequest) => string | Promise<string>
 }
 
 export async function createAcpFixture(options: FixtureOptions = {}) {
@@ -85,7 +109,7 @@ export async function createAcpFixture(options: FixtureOptions = {}) {
     await Bun.write(path.join(skills, "verifier-skill", "SKILL.md"), options.skill)
   }
 
-  const requests: unknown[] = []
+  const requests: ChatRequest[] = []
   const llm = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
@@ -93,7 +117,7 @@ export async function createAcpFixture(options: FixtureOptions = {}) {
       if (request.method !== "POST" || new URL(request.url).pathname !== "/v1/chat/completions") {
         return new Response("Not found", { status: 404 })
       }
-      const body = await request.json().catch(() => undefined)
+      const body = decodeChatRequest(await request.json())
       requests.push(body)
       return new Response(completion(await (options.respond?.(body) ?? "accepted")), {
         headers: { "content-type": "text/event-stream" },

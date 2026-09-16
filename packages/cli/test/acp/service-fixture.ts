@@ -29,7 +29,6 @@ type FixtureHandler = (
 
 type FixtureOptions = {
   readonly fetch?: FixtureHandler
-  readonly connection?: Partial<Parameters<typeof ACPService.make>[0]["connection"]>
   readonly models?: readonly ModelInfo[]
   readonly defaultModel?: ModelInfo
   readonly agents?: readonly AgentInfo[]
@@ -178,7 +177,6 @@ export function makeACPFixture(options: FixtureOptions = {}) {
         updates.push(update)
       },
       requestPermission: async () => ({ outcome: { outcome: "cancelled" } }),
-      ...options.connection,
     },
   })
 

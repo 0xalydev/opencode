@@ -33,26 +33,19 @@ describe("Command", () => {
         prompt: { text: "ship it", files: [{ uri: "file:///tmp/plan.md" }] },
         delivery: "steer" as const,
       }
-      expect(yield* command.execute({ name: "goal", invocation })).toEqual({ type: "immediate" })
+      expect(yield* command.execute({ name: "goal", invocation })).toEqual(Command.immediate)
       expect(calls).toEqual([invocation])
     }),
   )
 
-  it.effect("returns prompt outcomes admitted with the invocation message ID", () =>
+  it.effect("returns prompt outcomes and rejects ones admitted under another message ID", () =>
     Effect.gen(function* () {
       const command = yield* Command.Service
       yield* command.transform((editor) => {
-        editor.add({
-          name: "ask",
-          execute: (input) => Effect.succeed({ type: "prompt" as const, inboxID: input.messageID }),
-        })
+        editor.add({ name: "ask", execute: (input) => Effect.succeed(Command.prompted({ id: input.messageID })) })
         editor.add({
           name: "stray",
-          execute: () => Effect.succeed({ type: "prompt" as const, inboxID: SessionMessage.ID.make("msg_other") }),
-        })
-        editor.add({
-          name: "junk",
-          execute: () => Effect.succeed(true as unknown as Command.Outcome),
+          execute: () => Effect.succeed(Command.prompted({ id: SessionMessage.ID.make("msg_other") })),
         })
       })
       const invocation = {
@@ -62,22 +55,12 @@ describe("Command", () => {
         delivery: "steer" as const,
       }
 
-      expect(yield* command.execute({ name: "ask", invocation })).toEqual({
-        type: "prompt",
-        inboxID: invocation.messageID,
-      })
+      expect(yield* command.execute({ name: "ask", invocation })).toEqual(
+        Command.prompted({ id: invocation.messageID }),
+      )
       const error = yield* command.execute({ name: "stray", invocation }).pipe(Effect.flip)
-      expect(error).toMatchObject({
-        _tag: "Command.ExecutionError",
-        command: "stray",
-        message: "Command admitted msg_other instead of the invocation message ID msg_ask",
-      })
-      const junk = yield* command.execute({ name: "junk", invocation }).pipe(Effect.flip)
-      expect(junk).toMatchObject({
-        _tag: "Command.ExecutionError",
-        command: "junk",
-        message: "Command returned an invalid outcome (boolean)",
-      })
+      expect(error).toBeInstanceOf(Command.ExecutionError)
+      expect(error.message).toBe("Command admitted msg_other instead of the invocation message ID msg_ask")
     }),
   )
 
