@@ -1,15 +1,17 @@
-import { createEffect, createMemo, createSignal, Match, on, onCleanup, Switch } from "solid-js"
+import { createEffect, createMemo, createSignal, Match, on, onCleanup, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Dynamic } from "solid-js/web"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import type { FileSearchHandle } from "@opencode/session-ui/file"
 import { Markdown } from "@opencode/session-ui/markdown"
 import { useFileComponent } from "@opencode/ui/context/file"
+import { FileIcon } from "@opencode/ui/file-icon"
 import { cloneSelectedLineRange, previewSelectedLines } from "@opencode/session-ui/pierre/selection-bridge"
 import { createLineCommentControllerV2 } from "@opencode/session-ui/v2/line-comment-annotations-v2"
 import { sampledChecksum } from "@opencode/util/encode"
 import { LineCommentOverflowIcon } from "@opencode/ui/line-comment"
 import { Menu } from "@opencode/ui/menu"
+import { SegmentedControl, SegmentedControlItem } from "@opencode/ui/segmented-control"
 import { Tabs } from "@opencode/ui/tabs"
 import { ScrollView } from "@opencode/ui/scroll-view"
 import { showToast } from "@/shell/notifications/toast"
@@ -20,6 +22,9 @@ import { useComposerState } from "@/composer/persistence"
 import { getSessionHandoff } from "@/session/handoff"
 import { useSessionLayout } from "@/session/session-layout"
 import { createSessionTabs } from "@/session/helpers"
+import { OpenInAppButton } from "@/session/files/open-in-app-button"
+import { resolveOpenInAppPath } from "@/session/files/open-in-app-path"
+import { useWorkspaceLocation } from "@/workspaces/location"
 
 type SessionFileViewProps = {
   tab: string
@@ -183,6 +188,7 @@ export function SessionFileView(props: SessionFileViewProps) {
   const language = useLanguage()
   const prompt = useComposerState()
   const fileComponent = useFileComponent()
+  const location = useWorkspaceLocation()
   const { sessionKey, tabs, view } = useSessionLayout()
   const activeFileTab = createSessionTabs({
     tabs,
@@ -199,6 +205,9 @@ export function SessionFileView(props: SessionFileViewProps) {
   }
 
   const path = createMemo(() => file.pathFromTab(props.tab))
+  const markdown = createMemo(() => path()?.toLowerCase().endsWith(".md") ?? false)
+  const absolutePath = createMemo(() => resolveOpenInAppPath(location().directory, path() ?? ""))
+  const [display, setDisplay] = createStore({ markdown: "rendered" as "rendered" | "source" })
   const state = createMemo(() => {
     const p = path()
     if (!p) return
@@ -452,11 +461,44 @@ export function SessionFileView(props: SessionFileViewProps) {
   )
 
   const content = () => (
-    <div class="mt-3 relative h-full min-h-0">
-      <ScrollView class="h-full" viewportRef={scrollSync.setViewport} onScroll={scrollSync.handleScroll}>
+    <div class="relative h-full min-h-0 flex flex-col">
+      <Show when={path()}>
+        {(value) => (
+          <div data-slot="session-review-v2-file-header">
+            <div data-slot="session-review-v2-file-title">
+              <FileIcon node={{ path: value(), type: "file" }} class="size-4 shrink-0" />
+              <span class="min-w-0 flex-1 truncate text-13-regular text-text-muted" title={value()}>
+                {value()}
+              </span>
+            </div>
+            <div class="ms-auto shrink-0 flex items-center gap-3">
+              <Show when={markdown()}>
+                <SegmentedControl
+                  value={display.markdown}
+                  onChange={(value) => {
+                    if (value !== "rendered" && value !== "source") return
+                    setDisplay("markdown", value)
+                  }}
+                  class="!w-auto"
+                  aria-label={language.t("session.files.markdown.view")}
+                >
+                  <SegmentedControlItem value="rendered">
+                    {language.t("session.files.markdown.rendered")}
+                  </SegmentedControlItem>
+                  <SegmentedControlItem value="source">
+                    {language.t("session.files.markdown.source")}
+                  </SegmentedControlItem>
+                </SegmentedControl>
+              </Show>
+              <OpenInAppButton path={absolutePath} reveal />
+            </div>
+          </div>
+        )}
+      </Show>
+      <ScrollView class="flex-1 min-h-0" viewportRef={scrollSync.setViewport} onScroll={scrollSync.handleScroll}>
         <Switch>
           <Match when={state()?.loaded}>
-            {path()?.toLowerCase().endsWith(".md") ? (
+            {markdown() && display.markdown === "rendered" ? (
               <div class="px-6 py-4 pb-40">
                 <Markdown text={contents()} cacheKey={cacheKey()} />
               </div>

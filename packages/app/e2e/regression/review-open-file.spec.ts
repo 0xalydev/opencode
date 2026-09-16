@@ -131,6 +131,14 @@ test("opens and searches project files inline", async ({ page }) => {
   await expect(sidebarToggle).toBeEnabled()
   await expect(panel.getByRole("heading", { name: "Rendered README" })).toBeVisible()
   await expect(panel.getByText("contents:README.md", { exact: true })).toBeVisible()
+  await expect(panel.getByTitle("README.md")).toBeVisible()
+  const markdownView = panel.getByRole("group", { name: "Markdown view" })
+  await expect(markdownView.getByRole("button", { name: "Rendered" })).toHaveAttribute("aria-pressed", "true")
+  await markdownView.getByRole("button", { name: "Source" }).click()
+  await expect(panel.getByRole("heading", { name: "Rendered README" })).toHaveCount(0)
+  await expect(panel.getByText("# Rendered README", { exact: true })).toBeVisible()
+  await markdownView.getByRole("button", { name: "Rendered" }).click()
+  await expect(panel.getByRole("heading", { name: "Rendered README" })).toBeVisible()
   await expect(sidebar).toHaveCount(0)
 
   const missingReadPattern = "**/api/fs/read/README.md*"
@@ -177,6 +185,8 @@ test("opens and searches project files inline", async ({ page }) => {
   await expect(panel.getByRole("tab", { name: "nested.ts" }).locator("..")).toHaveCSS("gap", "8px")
   await expect(sidebarToggle).toBeEnabled()
   await expect(panel.getByText("contents:src/nested.ts", { exact: true })).toBeVisible()
+  await expect(panel.getByTitle("src/nested.ts")).toBeVisible()
+  await expect(panel.getByRole("group", { name: "Markdown view" })).toHaveCount(0)
   expect(searches).toContainEqual({ query: "nested", dirs: "file", limit: 200 })
 
   await panel.getByRole("button", { name: "Open file" }).click()
