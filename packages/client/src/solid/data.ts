@@ -1,6 +1,6 @@
 // Client data layer: apply server events and cache API reads into a Solid store.
 // Prefer straightforward projection. Invalidated reads revalidate serially so an older
-// response cannot commit after its replacement. Reconnect and location shutdown invalidate cached reads;
+// response cannot commit after its replacement. Reconnect invalidates cached reads;
 // active UI owners decide what to sync again.
 
 import type {
@@ -148,14 +148,6 @@ function createSync() {
   // that window are already covered, since the reload has not read anything yet.
   type Pending = { promise: Promise<void>; invalidated: boolean; started: boolean }
   const state = new Map<string, true | Pending>()
-  const versions = new Map<string, ReturnType<typeof createSignal<number>>>()
-  const version = (key: string) => {
-    const existing = versions.get(key)
-    if (existing) return existing
-    const value = createSignal(0)
-    versions.set(key, value)
-    return value
-  }
   const start = (key: string, load: () => Promise<void>, wait?: Promise<void>) => {
     const entry: Pending = { promise: Promise.resolve(), invalidated: false, started: !wait }
     state.set(key, entry)
@@ -172,11 +164,8 @@ function createSync() {
       })
     return entry.promise
   }
-  const result = {
-    version: (key: string) => version(key)[0](),
+  return {
     run(key: string, load: () => Promise<void>) {
-      // Reactive read owners resync after lifecycle changes. Imperative reads stay lazy.
-      version(key)[0]()
       const active = state.get(key)
       if (active === true) return Promise.resolve()
       if (!active) return start(key, load)
@@ -206,17 +195,7 @@ function createSync() {
         if (active !== true && active.started) active.invalidated = true
       })
     },
-    recover(matches?: (key: string) => boolean) {
-      batch(() => {
-        new Set([...state.keys(), ...versions.keys()]).forEach((key) => {
-          if (matches && !matches(key)) return
-          result.invalidate(key)
-          version(key)[1]((value) => value + 1)
-        })
-      })
-    },
   }
-  return result
 }
 
 export function createData(config: CreateDataInput) {
@@ -615,15 +594,8 @@ export function createData(config: CreateDataInput) {
     switch (event.type) {
       case "location.shutdown": {
         if (!event.location) return
-        const location = locationKey(event.location)
-        const sessions = new Set(
-          Object.values(store.session.info)
-            .filter((session) => locationKey(session.location) === location)
-            .map((session) => session.id),
-        )
-        sync.recover(
-          (key) => key.endsWith(`:${location}`) || (key.startsWith("session") && sessions.has(key.split(":")[1])),
-        )
+        result.location.invalidate(event.location)
+        refresh(() => result.location.sync(event.location))
         return
       }
       case "server.connected": {
@@ -1748,13 +1720,8 @@ export function createData(config: CreateDataInput) {
           return store.session.permission[sessionID]
         },
         sync(sessionID: string) {
-          const key = `session.permission:${sessionID}`
-          return sync.run(key, async () => {
-            const version = sync.version(key)
-            const requests = await api().permission.list({ sessionID })
-            // Shutdown cancels these waiters; an older snapshot must not restore them.
-            if (version !== sync.version(key)) return
-            setStore("session", "permission", sessionID, requests)
+          return sync.run(`session.permission:${sessionID}`, async () => {
+            setStore("session", "permission", sessionID, await api().permission.list({ sessionID }))
           })
         },
         invalidate(sessionID: string) {
@@ -1780,12 +1747,10 @@ export function createData(config: CreateDataInput) {
         sync(sessionID: string, ref?: LocationRef) {
           const key = `session.form:${sessionID}:${sessionID === "global" ? locationKey(ref ?? defaultLocation()) : ""}`
           return sync.run(key, async () => {
-            const version = sync.version(key)
             if (sessionID === "global") {
               const response = await api().form.list({
                 location: locationQuery(ref ?? defaultLocation()),
               })
-              if (version !== sync.version(key)) return
               const location = {
                 directory: response.location.directory,
               }
@@ -1798,9 +1763,7 @@ export function createData(config: CreateDataInput) {
               ])
               return
             }
-            const forms = await api().session.form.list({ sessionID })
-            if (version !== sync.version(key)) return
-            setStore("session", "form", sessionID, forms)
+            setStore("session", "form", sessionID, await api().session.form.list({ sessionID }))
           })
         },
         invalidate(sessionID: string, ref?: LocationRef) {
@@ -1864,10 +1827,6 @@ export function createData(config: CreateDataInput) {
       invalidate: shells.invalidate,
     },
     location: {
-      /** Reactive recovery token for owners that call sync outside a tracking scope. */
-      version(ref?: LocationRef) {
-        return sync.version(`location:${locationKey(ref ?? defaultLocation())}`)
-      },
       info(ref?: LocationRef) {
         return store.location[locationKey(ref ?? defaultLocation())]?.info
       },
@@ -1956,7 +1915,7 @@ export function createData(config: CreateDataInput) {
 
   createEffect(() => {
     if (config.connection?.status() === "connected") return
-    sync.recover()
+    sync.invalidate()
   })
 
   onCleanup(
