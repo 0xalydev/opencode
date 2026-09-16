@@ -29,6 +29,7 @@
   "dependencies": {
     "@opencode/plugin": "workspace:*",
     "@opencode/schema": "workspace:*",
+    "@typesafe-ai/sdk": "0.5.7",
     "effect": "catalog:"
   },
   "devDependencies": {
