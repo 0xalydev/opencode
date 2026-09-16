@@ -479,7 +479,7 @@ export function SessionFileView(props: SessionFileViewProps) {
                     if (value !== "rendered" && value !== "source") return
                     setDisplay("markdown", value)
                   }}
-                  class="!w-auto"
+                  class="!w-[184px]"
                   aria-label={language.t("session.files.markdown.view")}
                 >
                   <SegmentedControlItem value="rendered">

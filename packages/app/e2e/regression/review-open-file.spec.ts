@@ -133,7 +133,15 @@ test("opens and searches project files inline", async ({ page }) => {
   await expect(panel.getByText("contents:README.md", { exact: true })).toBeVisible()
   await expect(panel.getByTitle("README.md")).toBeVisible()
   const markdownView = panel.getByRole("group", { name: "Markdown view" })
-  await expect(markdownView.getByRole("button", { name: "Rendered" })).toHaveAttribute("aria-pressed", "true")
+  const renderedView = markdownView.getByRole("button", { name: "Rendered" })
+  await expect(renderedView).toHaveAttribute("aria-pressed", "true")
+  await expect
+    .poll(() =>
+      renderedView
+        .locator('[data-slot="segmented-control-v2-item-label"]')
+        .evaluate((label) => label.scrollWidth <= label.clientWidth),
+    )
+    .toBe(true)
   await markdownView.getByRole("button", { name: "Source" }).click()
   await expect(panel.getByRole("heading", { name: "Rendered README" })).toHaveCount(0)
   await expect(panel.getByText("# Rendered README", { exact: true })).toBeVisible()
