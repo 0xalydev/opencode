@@ -158,7 +158,6 @@ const appBindingCommands = [
   "opencode.update",
   "server.pair",
   "service.restart",
-  "location.reload",
   "opencode.debug",
   "theme.switch",
   "theme.switch_mode",
