@@ -9,12 +9,15 @@ import { usePlatform } from "@/runtime/platform/platform"
 import { useCheckServerHealth } from "@/runtime/server/health"
 import { useServers } from "@/runtime/server/registry"
 import { serverAddress } from "./pairing"
+import type { decodePairingCode } from "./pairing"
 import { isMixedContent } from "./browser"
 import "./screen.css"
 
 const PairingScanner = lazy(() => import("./scanner").then((module) => ({ default: module.PairingScanner })))
 
-export function ConnectServerScreen() {
+export function ConnectServerScreen(
+  props: { pairing?: NonNullable<ReturnType<typeof decodePairingCode>>; onConnect?: () => void } = {},
+) {
   const language = useLanguage()
   const platform = usePlatform()
   const servers = useServers()
@@ -36,7 +39,13 @@ export function ConnectServerScreen() {
     },
     { initialValue: false },
   )
-  const [state, setState] = createStore({ url: "", password: "", urls: [] as string[], error: "", scanning: false })
+  const [state, setState] = createStore({
+    url: props.pairing?.urls[0] ?? "",
+    password: props.pairing?.password ?? "",
+    urls: props.pairing?.urls ?? ([] as string[]),
+    error: "",
+    scanning: false,
+  })
   const connectionError = () =>
     language.t(
       platform.platform === "web" && isMixedContent(location.href, state.url)
@@ -57,6 +66,7 @@ export function ConnectServerScreen() {
         return
       }
       servers.add({ type: "http", http })
+      props.onConnect?.()
     },
     onError: () => setState("error", connectionError()),
   }))

@@ -7,14 +7,7 @@ import { InstallationEvent } from "@opencode/schema/installation-event"
 import { hasPtyConnectTicketURL } from "@opencode/protocol/groups/pty"
 import { hasPersistentPtyConnectTicketURL } from "@opencode/protocol/groups/persistent-pty"
 import { Cause, Context, Effect, Exit, Latch, Layer, Option, Ref, Scope } from "effect"
-import {
-  HttpMiddleware,
-  HttpPlatform,
-  HttpRouter,
-  HttpServer,
-  HttpServerRequest,
-  HttpServerResponse,
-} from "effect/unstable/http"
+import { HttpMiddleware, HttpRouter, HttpServer, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
 import { createServer } from "node:http"
 import { ServerAuth } from "./auth"
 import { isAllowedCorsOrigin } from "./cors"
@@ -67,15 +60,17 @@ export const start = Effect.fn("ServerProcess.start")(function* <E, R>(
     return ServerInfo.connectionURLs(`http://${host}:${address.port}`, hostname)
   }
   const application = yield* Ref.make(Option.none<App>())
+  const app = dispatch(password, status, application, options.app?.version ?? "unknown", urls)
   // Request fibers may continue inbound trace context, but must not inherit the server startup parent.
   yield* bound.http
     .serve(
-      dispatch(password, status, application, options.app?.version ?? "unknown", urls).pipe(
+      (transform ? transform(app) : app).pipe(
+        HttpMiddleware.compression(),
         HttpMiddleware.cors({ allowedOrigins: (origin) => isAllowedCorsOrigin(origin, options), maxAge: 86_400 }),
       ),
       errorResponseLogger,
     )
-    .pipe(withoutParentSpan)
+    .pipe(Effect.provide(NodeHttpServer.layerHttpServices), withoutParentSpan)
   if (lifecycle)
     yield* lifecycle.onListen(bound.http.address, shutdown.open.pipe(Effect.asVoid)).pipe(
       Effect.flatMap((cleanup) =>
@@ -109,13 +104,7 @@ export const start = Effect.fn("ServerProcess.start")(function* <E, R>(
         Effect.provideService(Scope.Scope, applicationScope),
       )
     }
-    const app = Context.get(context, HttpRouter.HttpRouter)
-      .asHttpEffect()
-      .pipe(
-        HttpMiddleware.compression(),
-        Effect.provideService(HttpPlatform.HttpPlatform, Context.get(context, HttpPlatform.HttpPlatform)),
-      )
-    yield* Ref.set(application, Option.some(transform ? transform(app) : app))
+    yield* Ref.set(application, Option.some(Context.get(context, HttpRouter.HttpRouter).asHttpEffect()))
     yield* status.ready
     const bus = Context.get(context, Bus.Service)
     return {

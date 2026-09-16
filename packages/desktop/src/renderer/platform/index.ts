@@ -1,9 +1,4 @@
-import {
-  ACCEPTED_FILE_EXTENSIONS,
-  ServerConnection,
-  type Platform,
-  type UpdaterPlatform,
-} from "@opencode/app/desktop"
+import { ACCEPTED_FILE_EXTENSIONS, ServerConnection, type Platform, type UpdaterPlatform } from "@opencode/app/desktop"
 import type { ElectronAPI } from "../api-types"
 import { setPinchZoomEnabled, webviewZoom } from "../window/zoom"
 import { windowFullscreen } from "../window/fullscreen"
@@ -84,6 +79,8 @@ export function createDesktopPlatform(
     windowFullscreen,
     getPinchZoomEnabled: () => api.getPinchZoomEnabled(),
     setPinchZoomEnabled,
+    getKeepScreenActive: () => api.getKeepScreenActive(),
+    setKeepScreenActive: (enabled) => api.setKeepScreenActive(enabled),
     onDragCancel: (callback) => {
       window.addEventListener(DragCancelEvent, callback)
       return () => window.removeEventListener(DragCancelEvent, callback)
@@ -91,6 +88,13 @@ export function createDesktopPlatform(
     runDesktopMenuAction: createDesktopMenuAction(api),
     checkAppExists: async (appName) => {
       return api.checkAppExists(appName)
+    },
+    pair: {
+      info: () => api.pairInfo(),
+      tailscaleAvailable: () => api.pairTailscaleAvailable(),
+      tailscaleStatus: () => api.pairTailscaleStatus(),
+      openTailscale: () => api.pairOpenTailscale(),
+      disableTailscale: () => api.pairDisableTailscale(),
     },
   }
 }
