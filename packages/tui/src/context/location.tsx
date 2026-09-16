@@ -1,5 +1,5 @@
 import type { LocationGetOutput, LocationRef } from "@opencode/client"
-import { createContext, createMemo, createSignal, onCleanup, useContext, type ParentProps } from "solid-js"
+import { createContext, createEffect, createMemo, createSignal, on, useContext, type ParentProps } from "solid-js"
 import { useClient } from "./client"
 import { useData } from "./data"
 
@@ -31,21 +31,19 @@ export function LocationProvider(props: ParentProps) {
     void data.location.sync(target).catch((cause) => {
       const current = ref()
       if (
-        generation !== attempt ||
-        current?.directory !== location.directory ||
-        current.workspaceID !== location.workspaceID
+        generation === attempt &&
+        current?.directory === location.directory &&
+        current.workspaceID === location.workspaceID
       )
-        return
-      setError({ location, cause })
+        setError({ location, cause })
     })
   }
 
-  function set(location?: LocationRef) {
-    setRef(location)
-    if (client.connection.status() === "connected") sync(location)
-  }
-
-  onCleanup(client.event.on("server.connected", () => sync(ref())))
+  createEffect(
+    on([ref, () => client.connection.status(), () => data.location.version(ref())], ([location, status]) => {
+      if (status === "connected") sync(location)
+    }),
+  )
 
   return (
     <context.Provider
@@ -59,7 +57,7 @@ export function LocationProvider(props: ParentProps) {
         get error() {
           return error()
         },
-        set,
+        set: setRef,
       }}
     >
       {props.children}
