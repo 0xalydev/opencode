@@ -4,6 +4,7 @@ import { Dynamic } from "solid-js/web"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import type { FileSearchHandle } from "@opencode/session-ui/file"
 import { Markdown } from "@opencode/session-ui/markdown"
+import { Button } from "@opencode/ui/button"
 import { useFileComponent } from "@opencode/ui/context/file"
 import { FileIcon } from "@opencode/ui/file-icon"
 import { cloneSelectedLineRange, previewSelectedLines } from "@opencode/session-ui/pierre/selection-bridge"
@@ -11,7 +12,6 @@ import { createLineCommentControllerV2 } from "@opencode/session-ui/v2/line-comm
 import { sampledChecksum } from "@opencode/util/encode"
 import { LineCommentOverflowIcon } from "@opencode/ui/line-comment"
 import { Menu } from "@opencode/ui/menu"
-import { SegmentedControl, SegmentedControlItem } from "@opencode/ui/segmented-control"
 import { Tabs } from "@opencode/ui/tabs"
 import { ScrollView } from "@opencode/ui/scroll-view"
 import { showToast } from "@/shell/notifications/toast"
@@ -473,22 +473,18 @@ export function SessionFileView(props: SessionFileViewProps) {
             </div>
             <div class="ms-auto shrink-0 flex items-center gap-3">
               <Show when={markdown()}>
-                <SegmentedControl
-                  value={display.markdown}
-                  onChange={(value) => {
-                    if (value !== "rendered" && value !== "source") return
-                    setDisplay("markdown", value)
-                  }}
-                  class="!w-[184px]"
-                  aria-label={language.t("session.files.markdown.view")}
+                <Button
+                  size="small"
+                  variant="neutral"
+                  class="min-w-[112px]"
+                  onClick={() => setDisplay("markdown", display.markdown === "rendered" ? "source" : "rendered")}
                 >
-                  <SegmentedControlItem value="rendered">
-                    {language.t("session.files.markdown.rendered")}
-                  </SegmentedControlItem>
-                  <SegmentedControlItem value="source">
-                    {language.t("session.files.markdown.source")}
-                  </SegmentedControlItem>
-                </SegmentedControl>
+                  {language.t(
+                    display.markdown === "rendered"
+                      ? "session.files.markdown.viewSource"
+                      : "session.files.markdown.viewRendered",
+                  )}
+                </Button>
               </Show>
               <OpenInAppButton path={absolutePath} reveal />
             </div>

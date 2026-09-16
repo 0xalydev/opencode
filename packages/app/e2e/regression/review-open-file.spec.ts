@@ -132,20 +132,15 @@ test("opens and searches project files inline", async ({ page }) => {
   await expect(panel.getByRole("heading", { name: "Rendered README" })).toBeVisible()
   await expect(panel.getByText("contents:README.md", { exact: true })).toBeVisible()
   await expect(panel.getByTitle("README.md")).toBeVisible()
-  const markdownView = panel.getByRole("group", { name: "Markdown view" })
-  const renderedView = markdownView.getByRole("button", { name: "Rendered" })
-  await expect(renderedView).toHaveAttribute("aria-pressed", "true")
-  await expect
-    .poll(() =>
-      renderedView
-        .locator('[data-slot="segmented-control-v2-item-label"]')
-        .evaluate((label) => label.scrollWidth <= label.clientWidth),
-    )
-    .toBe(true)
-  await markdownView.getByRole("button", { name: "Source" }).click()
+  const viewSource = panel.getByRole("button", { name: "View Source" })
+  await expect(viewSource).toBeVisible()
+  await expect.poll(() => viewSource.evaluate((button) => button.scrollWidth <= button.clientWidth)).toBe(true)
+  await viewSource.click()
   await expect(panel.getByRole("heading", { name: "Rendered README" })).toHaveCount(0)
   await expect(panel.getByText("# Rendered README", { exact: true })).toBeVisible()
-  await markdownView.getByRole("button", { name: "Rendered" }).click()
+  const viewRendered = panel.getByRole("button", { name: "View Rendered" })
+  await expect.poll(() => viewRendered.evaluate((button) => button.scrollWidth <= button.clientWidth)).toBe(true)
+  await viewRendered.click()
   await expect(panel.getByRole("heading", { name: "Rendered README" })).toBeVisible()
   await expect(sidebar).toHaveCount(0)
 
@@ -194,7 +189,7 @@ test("opens and searches project files inline", async ({ page }) => {
   await expect(sidebarToggle).toBeEnabled()
   await expect(panel.getByText("contents:src/nested.ts", { exact: true })).toBeVisible()
   await expect(panel.getByTitle("src/nested.ts")).toBeVisible()
-  await expect(panel.getByRole("group", { name: "Markdown view" })).toHaveCount(0)
+  await expect(panel.getByRole("button", { name: /View (Source|Rendered)/ })).toHaveCount(0)
   expect(searches).toContainEqual({ query: "nested", dirs: "file", limit: 200 })
 
   await panel.getByRole("button", { name: "Open file" }).click()
