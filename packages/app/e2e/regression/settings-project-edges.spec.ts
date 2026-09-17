@@ -160,6 +160,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       const rename = panel.getByRole("textbox", { name: "Rename", exact: true })
       await expect(rename).toBeFocused()
       await expect(rename).toHaveValue("rebase")
+      await expect(rename).toHaveCSS("border-radius", "0px")
       await rename.fill("Renamed project")
       const renamed = page.waitForRequest(
         (request) => request.method() === "PATCH" && new URL(request.url()).pathname === "/api/project/project-0",

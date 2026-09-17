@@ -88,7 +88,7 @@ export function SettingsProjectRow(props: {
                 value={store.editor?.draft ?? ""}
                 disabled={store.editor?.saving}
                 class="w-full text-[13px] font-[530] leading-5 tracking-[-0.04px] text-v2-text-text-base outline-none"
-                style={{ "--inline-input-shadow": "none", "text-align": "start" }}
+                style={{ "--inline-input-shadow": "none", "border-radius": "0", "text-align": "start" }}
                 onInput={(event) => setStore("editor", "draft", event.currentTarget.value)}
                 onKeyDown={(event) => {
                   event.stopPropagation()
