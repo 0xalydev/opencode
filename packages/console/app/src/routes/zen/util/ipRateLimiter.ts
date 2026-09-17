@@ -6,6 +6,8 @@ import { localeFromRequest } from "~/lib/language"
 import { Subscription } from "@opencode/console-core/subscription.js"
 
 export function createRateLimiter(modelId: string, rateLimit: number | undefined, rawIp: string, request: Request) {
+  if (modelId === "union-alpha") return
+
   const dict = i18n(localeFromRequest(request))
 
   const limits = Subscription.getFreeLimits()

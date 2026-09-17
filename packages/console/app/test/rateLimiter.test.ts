@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test"
-import { getRetryAfterDay } from "../src/routes/zen/util/ipRateLimiter"
+import { createRateLimiter, getRetryAfterDay } from "../src/routes/zen/util/ipRateLimiter"
+
+describe("createRateLimiter", () => {
+  test("does not limit Union Alpha", () => {
+    expect(createRateLimiter("union-alpha", undefined, "127.0.0.1", new Request("https://opencode.ai"))).toBeUndefined()
+  })
+})
 
 describe("getRetryAfterDay", () => {
   test("returns full day at midnight UTC", () => {
