@@ -33,10 +33,16 @@ test("every MCP row hit area toggles exactly once and keeps the submenu open", a
   })
   await page.goto(stressSessionHref(fixture.targetID))
   const trigger = page.getByRole("button", { name: "Session details", exact: true })
-  await expect(trigger.locator('[data-slot="status-indicator"]')).toBeVisible()
+  await expect(trigger.locator('[data-slot="status-indicator"]')).toHaveClass(/bg-v2-background-bg-accent/)
   await trigger.click()
+  await expect(
+    page
+      .getByRole("dialog", { name: "Session details", exact: true })
+      .getByRole("button", { name: "Extensions", exact: true })
+      .locator('[data-slot="status-indicator"]'),
+  ).toHaveClass(/bg-icon-success-base/)
   const mcp = page.getByRole("button", { name: "MCP", exact: true })
-  await expect(mcp.locator(".session-summary-service-status")).toBeVisible()
+  await expect(mcp.locator(".session-summary-service-status")).toHaveClass(/bg-v2-background-bg-accent/)
   await mcp.click()
   const submenu = page.getByRole("dialog", { name: "MCP", exact: true })
   const toggle = submenu.getByRole("switch", { name: "figma", exact: true })

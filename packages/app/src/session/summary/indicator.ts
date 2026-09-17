@@ -16,15 +16,11 @@ export function serviceStatusDotClass(statuses: Array<McpServer["status"]["statu
 export function serverStatusDotClass(input: {
   ready: boolean
   serverHealth: boolean | undefined
-  attention: boolean
-  issue: boolean
   connecting: boolean
 }) {
   if (input.serverHealth === false) return "bg-icon-critical-base"
   if (input.connecting) return "bg-border-weak-base animate-pulse"
   if (!input.ready || input.serverHealth === undefined) return "bg-border-weak-base"
-  if (input.attention) return "bg-v2-background-bg-accent"
-  if (input.issue) return "bg-icon-warning-base"
   return "bg-icon-success-base"
 }
 
@@ -34,17 +30,15 @@ export function summaryStatus(input: {
   mcp: Array<McpServer["status"]["status"]>
   connecting: boolean
 }) {
-  const attention = hasServiceNeedingAttention(input.mcp)
-  const issue = hasNonBlockingServiceIssue(input.mcp)
+  const mcp = serviceStatusDotClass(input.mcp)
+  const server = serverStatusDotClass({
+    ready: input.ready,
+    serverHealth: input.serverHealth,
+    connecting: input.connecting,
+  })
   return {
-    server: serverStatusDotClass({
-      ready: input.ready,
-      serverHealth: input.serverHealth,
-      attention,
-      issue,
-      connecting: input.connecting,
-    }),
-    mcp: serviceStatusDotClass(input.mcp),
-    noteworthy: input.serverHealth === false || attention || issue,
+    server,
+    mcp,
+    trigger: input.serverHealth === false ? server : mcp,
   }
 }
