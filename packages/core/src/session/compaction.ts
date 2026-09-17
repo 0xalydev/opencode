@@ -94,7 +94,6 @@ export type Settings = {
 }
 
 export type NativeInput = {
-  /** Prepared after model request hooks and route provenance checks. */
   readonly request: LLMRequest
   readonly options: StreamOptions
   /** Whole, real user messages within the retained-token allowance, for checkpoint-only mechanisms. */

@@ -6,7 +6,6 @@ import { Effect } from "effect"
 import { SessionCompaction } from "../session/compaction.js"
 import type { PluginInternal } from "./internal.js"
 
-/** Native compaction for routes with typed compaction operations: streamed trigger when available, else the endpoint. */
 export const Plugin = define({
   id: "opencode.compaction.native",
   effect: Effect.fn("NativeCompactionPlugin")(function* () {
