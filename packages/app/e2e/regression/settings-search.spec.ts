@@ -253,7 +253,8 @@ test("Projects shows an add action in its empty state", async ({ page }) => {
   await expect(emptyCard).toHaveCSS("border-radius", "8px")
   const emptyBackground = await emptyCard.evaluate((element) => {
     const probe = document.createElement("div")
-    probe.style.background = "var(--v2-background-bg-base)"
+    probe.style.background =
+      "color-mix(in oklab, var(--v2-background-bg-base) 50%, var(--v2-background-bg-layer-01))"
     element.append(probe)
     const color = getComputedStyle(probe).backgroundColor
     probe.remove()
