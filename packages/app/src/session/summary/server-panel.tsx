@@ -27,6 +27,7 @@ import { showToast } from "@/shell/notifications/toast"
 import { pluginLabel } from "@/providers/catalog/plugin"
 import { useMcpToggle, type McpControls } from "@/providers/connect/mcp"
 import { configuredLsps } from "./configured-lsp"
+import { hasNonBlockingServiceIssue, hasServiceNeedingAttention, serverStatusDotClass } from "./indicator"
 
 const services = [
   { type: "mcp", icon: "mcp", label: "session.summary.mcp" },
@@ -50,10 +51,22 @@ type ServiceMenuProps = {
 export function SessionServerPanel(props: { directory: string; shown: boolean; mobile?: boolean; mcp?: McpControls }) {
   const language = useLanguage()
   const server = useServer()
+  const data = useData()
   const global = useGlobal()
   const settings = useSettings()
   const contentID = createUniqueId()
   const expanded = settings.sessionSummary.serverExpanded
+  const mcp = () => data.location.mcp.server.list({ directory: props.directory })
+  const status = createMemo(() => {
+    const statuses = (mcp() ?? []).map((item) => item.status.status)
+    return serverStatusDotClass({
+      ready: server.health?.healthy === false || mcp() !== undefined,
+      serverHealth: server.health?.healthy,
+      attention: hasServiceNeedingAttention(statuses),
+      issue: hasNonBlockingServiceIssue(statuses),
+      connecting: server.ctx.sdk.connection.status() !== "connected",
+    })
+  })
   const name = createMemo(() => {
     const servers = global.servers.list()
     if (servers.length < 2) return language.t("session.summary.server")
@@ -71,7 +84,10 @@ export function SessionServerPanel(props: { directory: string; shown: boolean; m
         aria-controls={contentID}
         onClick={() => settings.sessionSummary.setServerExpanded(!expanded())}
       >
-        <Icon name="server" class="shrink-0 text-v2-icon-icon-muted" />
+        <span class="session-summary-server-icon">
+          <Icon name="server" class="text-v2-icon-icon-muted" />
+          <span data-slot="status-indicator" class={`session-summary-server-status ${status()}`} aria-hidden="true" />
+        </span>
         <span dir="auto" class="session-summary-label">
           {name()}
         </span>
