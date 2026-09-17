@@ -1,40 +1,45 @@
-import { For, Show, createEffect, createMemo, on, onCleanup, type Component } from "solid-js"
+import { For, Show, createEffect, createMemo, on, type Component } from "solid-js"
 import { createStore } from "solid-js/store"
+import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { Button } from "@opencode/ui/button"
 import { Icon } from "@opencode/ui/icon"
-import { IconButton } from "@opencode/ui/icon-button"
-import { Menu } from "@opencode/ui/menu"
 import { TextInput } from "@opencode/ui/text-input"
 import { useLanguage } from "@/runtime/i18n/language"
 import { useGlobal } from "@/runtime/server/runtime"
 import { ServerConnection } from "@/runtime/server/registry"
-import { displayName, errorMessage, homeProjectDirectories } from "@/shell/layout/helpers"
+import { displayName, homeProjectDirectories } from "@/shell/layout/helpers"
 import { ProjectIcon } from "@/shell/layout/project-icon"
 import type { LocalProject } from "@/shell/state/layout"
-import { useTabs } from "@/shell/tabs/tabs"
-import { usePlatform } from "@/runtime/platform/platform"
 import { useDirectoryPicker } from "@/workspaces/selection/picker"
-import { fileManagerApp } from "@/home/projects/file-manager"
 import { addProjects } from "@/home/projects/add"
-import { revealProject } from "@/home/projects/reveal"
-import { showToast } from "@/shell/notifications/toast"
 import { settingsProjects } from "../servers/inventory"
-import { SettingsList } from "../list"
+import { SettingsSearchEmpty } from "../search-empty"
+import { ProjectOptions } from "./project-options"
+import "@/settings/search.css"
 import "@/settings/settings.css"
 
 export const SettingsProjects: Component<{
   server: ServerConnection.Any
-  active?: boolean
-  autofocus?: boolean
   onOpenProject: (project: LocalProject) => void
 }> = (props) => {
   const language = useLanguage()
   const global = useGlobal()
-  const platform = usePlatform()
-  const tabs = useTabs()
   const pickDirectory = useDirectoryPicker()
-  const [store, setStore] = createStore({ filter: "", menu: undefined as string | undefined })
+  const [store, setStore] = createStore({
+    filter: "",
+    menu: undefined as string | undefined,
+    overflow: { start: false, end: false },
+  })
   let search: HTMLInputElement | undefined
+  const updateOverflow = () => {
+    if (!search) return
+    const offset = Math.abs(search.scrollLeft)
+    setStore("overflow", {
+      start: offset > 1,
+      end: search.scrollWidth - search.clientWidth - offset > 1,
+    })
+  }
+  createEffect(on(() => store.filter, updateOverflow))
   const context = createMemo(() => global.ensureServerCtx(props.server))
   const projects = createMemo(() => settingsProjects(context()))
   const searchable = createMemo(() => projects().length > 7)
@@ -42,19 +47,6 @@ export const SettingsProjects: Component<{
     const query = searchable() ? store.filter.trim().toLowerCase() : ""
     return query ? projects().filter((project) => displayName(project).toLowerCase().includes(query)) : projects()
   })
-  createEffect(
-    on(
-      () => (props.active ?? true) && searchable(),
-      (active) => {
-        if (!active) return
-        const frame = requestAnimationFrame(() => {
-          if (props.active !== false && props.autofocus !== false && search?.isConnected)
-            search.focus({ preventScroll: true })
-        })
-        onCleanup(() => cancelAnimationFrame(frame))
-      },
-    ),
-  )
   createEffect(() => {
     if (!searchable()) setStore("filter", "")
   })
@@ -63,49 +55,18 @@ export const SettingsProjects: Component<{
       server: props.server,
       title: language.t("command.project.open"),
       multiple: true,
-      onSelect: (result) => addProjects(context(), homeProjectDirectories(result)),
+      onSelect: (result) => {
+        const directories = homeProjectDirectories(result)
+        const directory = addProjects(context(), directories)
+        if (!directory) return
+        if (directories.length > 1) return
+        const project = context()
+          .projects.list()
+          .find((item) => item.worktree === directory)
+        if (!project) return
+        props.onOpenProject(project)
+      },
     })
-  const newSession = (project: LocalProject) => {
-    context().projects.open(project.worktree)
-    context().projects.touch(project.worktree)
-    void tabs.newDraft({ server: ServerConnection.key(props.server), directory: project.worktree })
-  }
-  const canReveal = () =>
-    platform.platform === "desktop" && !!platform.revealPath && ServerConnection.local(props.server)
-  const reveal = (project: LocalProject) => {
-    if (!platform.revealPath || !canReveal()) return
-    void revealProject({
-      directory: project.worktree,
-      reveal: platform.revealPath,
-      remove: context().projects.remove,
-    })
-      .then((revealed) => {
-        if (revealed) return
-        showToast({
-          variant: "error",
-          title: language.t("home.project.missing.title"),
-          description: language.t("home.project.missing.description", { name: displayName(project) }),
-        })
-      })
-      .catch((cause: unknown) =>
-        showToast({
-          title: language.t("common.requestFailed"),
-          description: errorMessage(cause, language.t("common.requestFailed")),
-        }),
-      )
-  }
-  const unseen = (project: LocalProject) =>
-    [project.worktree, ...(project.sandboxes ?? [])].reduce(
-      (total, directory) => total + context().notification.project.unseenCount(directory),
-      0,
-    )
-  const clearNotifications = (project: LocalProject) => {
-    const notification = context().notification
-    const directories = [project.worktree, ...(project.sandboxes ?? [])]
-    directories
-      .filter((directory) => notification.project.unseenCount(directory) > 0)
-      .forEach((directory) => notification.project.markViewed(directory))
-  }
 
   return (
     <>
@@ -115,21 +76,31 @@ export const SettingsProjects: Component<{
             <h2 class="settings-tab-title">{language.t("settings.projects.title")}</h2>
             <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.projects.description")}</span>
           </div>
-          <Button variant="ghost-muted" icon="plus" onClick={addProject}>
-            {language.t("home.project.add")}
-          </Button>
+          <Show when={projects().length > 0}>
+            <Button variant="ghost-muted" icon="plus" onClick={addProject}>
+              {language.t("home.project.add")}
+            </Button>
+          </Show>
         </div>
         <Show when={searchable()}>
-          <div class="settings-tab-search">
+          <div class="settings-tab-search settings-projects-search">
             <TextInput
-              ref={search}
+              ref={(element) => {
+                search = element
+                createResizeObserver(element, updateOverflow)
+              }}
               type="search"
               appearance="base"
+              leadingIcon={<Icon name="magnifying-glass" size="small" />}
               value={store.filter}
+              data-overflow-start={store.overflow.start}
+              data-overflow-end={store.overflow.end}
+              onScroll={updateOverflow}
               onInput={(event) => setStore("filter", event.currentTarget.value)}
               placeholder={language.t("settings.projects.search.placeholder")}
               aria-label={language.t("settings.projects.search.placeholder")}
               showClearButton={!!store.filter}
+              clearIcon="circle-xmark"
               onClearClick={() => {
                 setStore("filter", "")
                 search?.focus({ preventScroll: true })
@@ -147,70 +118,71 @@ export const SettingsProjects: Component<{
         <Show
           when={filtered().length > 0}
           fallback={
-            <div class="py-12 text-center text-v2-text-text-muted text-13-regular">
-              {language.t("settings.projects.empty")}
-            </div>
+            <Show
+              when={!store.filter.trim() && projects().length === 0}
+              fallback={
+                <Show
+                  when={store.filter.trim()}
+                  fallback={
+                    <div class="py-12 text-center text-v2-text-text-muted text-13-regular">
+                      {language.t("settings.projects.empty")}
+                    </div>
+                  }
+                >
+                  <div class="settings-projects-empty">
+                    <SettingsSearchEmpty query={store.filter} />
+                  </div>
+                </Show>
+              }
+            >
+              <div class="flex flex-col items-center gap-2 py-12 text-center">
+                <Icon name="folder" size="large" class="mb-2 text-v2-icon-icon-muted" />
+                <div class="text-13-medium text-v2-text-text-base">
+                  {language.t("settings.projects.empty.title")}
+                </div>
+                <div class="text-13-regular text-v2-text-text-muted">
+                  {language.t("settings.projects.empty.description")}
+                </div>
+                <Button variant="neutral" icon="plus" class="mt-6" onClick={addProject}>
+                  {language.t("home.project.add")}
+                </Button>
+              </div>
+            </Show>
           }
         >
-          <SettingsList variant="catalog">
+          <div role="list" class="settings-project-list">
             <For each={filtered()}>
               {(project) => (
-                <div data-component="settings-row" class="group/project relative !gap-2">
-                  <button
-                    type="button"
-                    aria-label={displayName(project)}
-                    class="group/target -my-4 flex min-h-[52px] min-w-0 flex-1 items-center gap-2 rounded-[4px] bg-transparent py-4 text-start focus-visible:outline-none focus-visible:[box-shadow:inset_0_0_0_1px_var(--v2-border-border-focus)]"
-                    onClick={() => props.onOpenProject(project)}
+                <div class="settings-project-row-shell">
+                  <div
+                    role="listitem"
+                    data-component="settings-project-card"
+                    data-menu={store.menu === project.worktree ? "true" : undefined}
+                    class="settings-project-card"
                   >
-                    <ProjectIcon project={project} class="shrink-0" />
-                    <span class="flex min-w-0 items-center gap-1">
+                    <button
+                      type="button"
+                      aria-label={displayName(project)}
+                      class="flex h-full min-w-0 flex-1 items-center gap-2 rounded-[4px] bg-transparent text-start focus-visible:outline-none focus-visible:[box-shadow:inset_0_0_0_1px_var(--v2-border-border-focus)]"
+                      onClick={() => props.onOpenProject(project)}
+                    >
+                      <ProjectIcon project={project} class="shrink-0" />
                       <bdi class="truncate text-[13px] font-[530] leading-5 tracking-[-0.04px] text-v2-text-text-base">
                         {displayName(project)}
                       </bdi>
-                      <Icon
-                        name="chevron-right"
-                        size="small"
-                        class="shrink-0 text-v2-icon-icon-muted opacity-0 transition-opacity group-hover/project:opacity-100 group-focus-visible/target:opacity-100 rtl:rotate-180"
-                      />
-                    </span>
-                  </button>
-                  <Menu
-                    gutter={4}
-                    modal={false}
-                    placement="bottom-end"
-                    open={store.menu === project.worktree}
-                    onOpenChange={(open) => setStore("menu", open ? project.worktree : undefined)}
-                  >
-                    <Menu.Trigger
-                      as={IconButton}
-                      variant="ghost-muted"
-                      size="small"
-                      class="-my-0.5"
-                      icon={<Icon name="outline-dots" />}
-                      aria-label={language.t("common.moreOptions")}
+                    </button>
+                    <ProjectOptions
+                      server={props.server}
+                      project={project}
+                      open={store.menu === project.worktree}
+                      onOpenChange={(open) => setStore("menu", open ? project.worktree : undefined)}
+                      onEdit={() => props.onOpenProject(project)}
                     />
-                    <Menu.Portal>
-                      <Menu.Content>
-                        <Menu.Item onSelect={() => newSession(project)}>{language.t("command.session.new")}</Menu.Item>
-                        <Show when={canReveal()}>
-                          <Menu.Item onSelect={() => reveal(project)}>
-                            {language.t(fileManagerApp(platform.os ?? "unknown").actionLabel)}
-                          </Menu.Item>
-                        </Show>
-                        <Menu.Item disabled={unseen(project) === 0} onSelect={() => clearNotifications(project)}>
-                          {language.t("sidebar.project.clearNotifications")}
-                        </Menu.Item>
-                        <Menu.Separator />
-                        <Menu.Item onSelect={() => context().projects.close(project.worktree)}>
-                          {language.t("common.close")}
-                        </Menu.Item>
-                      </Menu.Content>
-                    </Menu.Portal>
-                  </Menu>
+                  </div>
                 </div>
               )}
             </For>
-          </SettingsList>
+          </div>
         </Show>
       </div>
     </>

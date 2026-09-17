@@ -77,6 +77,8 @@
 }
 
 .settings-nav > .settings-back {
+  position: relative;
+  inset-block-start: -22px;
   margin-block-end: 8px;
 }
 
@@ -111,8 +113,8 @@
 }
 
 @media (hover: hover) {
-  .settings-nav-groups [data-slot="tabs-v2-trigger-wrapper"]:hover {
-    background: var(--v2-background-bg-layer-03);
+  .settings-nav-groups [data-slot="tabs-v2-trigger-wrapper"]:not(:has([data-selected])):hover {
+    background: var(--v2-overlay-simple-overlay-hover);
   }
 }
 
@@ -373,6 +375,10 @@
   justify-content: space-between;
   gap: 16px;
   width: 100%;
+}
+
+.project-settings-header .settings-tab-header-row {
+  align-items: flex-start;
 }
 
 .settings-tab-title {
@@ -801,6 +807,85 @@
 
 .settings-tab-search [data-slot="text-input-v2-input"] {
   padding-inline-end: 28px;
+}
+
+.settings-projects-search [data-component="text-input-v2"] {
+  height: 36px;
+  background: color-mix(in oklab, var(--v2-background-bg-layer-02) 60%, transparent);
+  box-shadow: none;
+}
+
+.settings-projects-search [data-component="text-input-v2"]:is(:hover, :focus-within):not([data-disabled]) {
+  background: var(--v2-background-bg-layer-02);
+}
+
+.settings-projects-search [data-slot="text-input-v2-input"] {
+  padding-inline-end: 0;
+}
+
+.settings-projects-search [data-slot="text-input-v2-leading-icon"] {
+  padding-inline-start: 16px;
+}
+
+.settings-projects-search [data-slot="text-input-v2-value"] {
+  gap: 8px;
+}
+
+.settings-projects-search [data-slot="text-input-v2-icon-button"][data-variant="clear"] {
+  margin-inline-end: -4px;
+}
+
+.settings-projects-empty {
+  width: 60%;
+  margin-inline: auto;
+}
+
+.settings-projects-empty .settings-search-empty {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.settings-projects-empty .settings-search-empty-quoted {
+  flex: 0 1 auto;
+}
+
+.settings-project-list {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--v2-background-bg-layer-01);
+  box-shadow: inset 0 0 0 0.5px var(--v2-border-border-muted);
+}
+
+.settings-project-row-shell {
+  position: relative;
+  margin-inline: 4px;
+  padding-block: 4px;
+}
+
+.settings-project-row-shell:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  inset-inline: 12px;
+  bottom: 0;
+  height: 0.5px;
+  background: var(--v2-border-border-base);
+}
+
+.settings-project-card {
+  display: flex;
+  height: 40px;
+  align-items: center;
+  gap: 8px;
+  padding-inline: 12px;
+  border-radius: 4px;
+  transition: background-color 120ms;
+}
+
+.settings-project-card:hover,
+.settings-project-card:focus-within,
+.settings-project-card[data-menu="true"] {
+  background: var(--v2-background-bg-layer-02);
 }
 
 .settings-tab-search-clear {

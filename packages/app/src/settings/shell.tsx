@@ -5,7 +5,6 @@ import { createStore } from "solid-js/store"
 import { useLanguage } from "@/runtime/i18n/language"
 import { useLayout } from "@/shell/state/layout"
 import { useTabs } from "@/shell/tabs/tabs"
-import { displayName } from "@/shell/layout/helpers"
 import { useGlobal, useServerCtx } from "@/runtime/server/runtime"
 import { ServerConnection } from "@/runtime/server/registry"
 import type { LocalProject } from "@/shell/state/layout"
@@ -294,8 +293,6 @@ function RootSettings() {
             <Tabs.Content value="projects" class="settings-panel">
               <SettingsProjects
                 server={server}
-                active={surface.view().tab === "projects"}
-                autofocus={!surface.search.state.selected}
                 onOpenProject={(project) =>
                   surface.openProject({
                     server: ServerConnection.key(server),
@@ -378,7 +375,6 @@ function ServerSettings(props: { entry: SettingsServer }) {
             <Tabs.Content value="projects" class="settings-panel">
               <SettingsProjects
                 server={server}
-                active={surface.view().tab === "projects"}
                 onOpenProject={(project) =>
                   surface.openProject({
                     server: props.entry.key,
@@ -421,10 +417,8 @@ function ProjectSettings(props: { server: ServerConnection.Any; project: LocalPr
     {
       items: nestedProjectTabs.map((item) => ({
         ...item,
+        label: language.t(item.label),
         onPrefetch: item.value === "workspaces" ? prefetchWorkspaces : undefined,
-        get label() {
-          return item.value === "general" ? displayName(props.project) : language.t(item.label)
-        },
       })),
     },
   ]
@@ -443,6 +437,7 @@ function ProjectSettings(props: { server: ServerConnection.Any; project: LocalPr
               server={props.server}
               project={props.project}
               onOpenServer={() => surface.replaceServer(ServerConnection.key(props.server))}
+              onClose={() => surface.back()}
             />
           </Tabs.Content>
           <Tabs.Content value="workspaces" class="settings-panel">
