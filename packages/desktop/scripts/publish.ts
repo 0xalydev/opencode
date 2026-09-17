@@ -1,6 +1,8 @@
 #!/usr/bin/env bun
 
 import { Script } from "@opencode/script"
+import { $ } from "bun"
+import path from "node:path"
 import { UpdateArtifact } from "../../../script/update-artifact"
 
 const dryRun = process.argv.includes("--dry-run")
@@ -8,8 +10,11 @@ if (!Script.release) {
   console.log("skipped desktop publication without a release")
   process.exit(0)
 }
+const repo = process.env.GH_REPO
+if (!repo) throw new Error("GH_REPO is required")
 const directory = process.env.OPENCODE_DESKTOP_DIST
 if (!directory) throw new Error("OPENCODE_DESKTOP_DIST is required")
+const tag = `v${Script.version}`
 const files = (
   await Array.fromAsync(
     new Bun.Glob("*.{exe,blockmap,dmg,zip,AppImage,deb,rpm,app.tar.gz}").scan({ cwd: directory, absolute: true }),
@@ -17,22 +22,56 @@ const files = (
 ).sort()
 if (!files.length) throw new Error("No desktop release files found")
 
-const uploaded = await UpdateArtifact.upload({ version: Script.version, files, dryRun })
-const artifact = {
-  channel: Script.channel,
-  name: "desktop",
-  distribution: "opencode",
-  version: Script.version,
-  metadata: { files: uploaded, ...(await metadata(Script.version, uploaded)) },
+if (!dryRun) {
+  await $`gh release upload ${tag} ${files} --clobber --repo ${repo}`
+  await $`bun ${path.join(import.meta.dir, "finalize-latest-json.ts")}`
+  await $`bun ${path.join(import.meta.dir, "finalize-latest-yml.ts")}`
 }
-if (dryRun) console.log(`dry-run artifact: ${JSON.stringify(artifact)}`)
-if (!dryRun) await UpdateArtifact.publish(artifact)
+
+const uploaded = await UpdateArtifact.upload({ version: Script.version, files, dryRun })
+const artifacts = [
+  { distribution: "github", metadata: await githubMetadata(Script.version, repo) },
+  { distribution: "opencode", metadata: { files: uploaded, ...(await metadata(Script.version, uploaded)) } },
+]
+
+if (!dryRun) await $`gh release edit ${tag} --draft=false --repo ${repo}`
+for (const artifact of artifacts) {
+  const input = { ...artifact, channel: Script.channel, name: "desktop", version: Script.version }
+  if (dryRun) console.log(`dry-run artifact: ${JSON.stringify(input)}`)
+  if (!dryRun) await UpdateArtifact.publish(input)
+}
 
 type DesktopFile = {
   url: string
   sha512: string
   size: number
   blockMapSize?: number
+}
+
+async function githubMetadata(version: string, repo: string) {
+  const directory = process.env.RUNNER_TEMP ?? "/tmp"
+  const entries = await Promise.all(
+    [
+      ["desktop.yml", "latest.yml"],
+      ["desktop-mac.yml", "latest-mac.yml"],
+      ["desktop-linux.yml", "latest-linux.yml"],
+      ["desktop-linux-arm64.yml", "latest-linux-arm64.yml"],
+    ].map(async ([name, source]) => {
+      const file = Bun.file(`${directory}/${source}`)
+      if (!(await file.exists())) return undefined
+      return [
+        name,
+        parse(
+          await file.text(),
+          version,
+          (filename) => `https://github.com/${repo}/releases/download/v${version}/${encodeURIComponent(filename)}`,
+        ),
+      ] as const
+    }),
+  )
+  const manifests = Object.fromEntries(entries.filter((entry) => entry !== undefined))
+  if (!Object.keys(manifests).length) throw new Error("No desktop update metadata found")
+  return { manifests }
 }
 
 async function metadata(version: string, files: Record<string, { url: string }>) {
@@ -65,7 +104,7 @@ async function metadata(version: string, files: Record<string, { url: string }>)
           item.sources.map(async ([subdirectory, source]) => {
             const file = Bun.file(`${directory}/${subdirectory}/${source}`)
             if (!(await file.exists())) return undefined
-            return parse(await file.text(), version, files)
+            return parse(await file.text(), version, (filename) => files[filename]?.url)
           }),
         )
       ).filter((manifest) => manifest !== undefined)
@@ -81,7 +120,7 @@ async function metadata(version: string, files: Record<string, { url: string }>)
   return { manifests }
 }
 
-function parse(content: string, version: string, uploaded: Record<string, { url: string }>) {
+function parse(content: string, version: string, resolve: (filename: string) => string | undefined) {
   const lines = content.split("\n")
   const found = lines
     .find((line) => line.startsWith("version:"))
@@ -100,7 +139,7 @@ function parse(content: string, version: string, uploaded: Record<string, { url:
     if (value.startsWith("- url:")) {
       const name = value.slice("- url:".length).trim()
       const filename = name.startsWith("http") ? decodeURIComponent(new URL(name).pathname.split("/").pop()!) : name
-      const url = uploaded[filename]?.url
+      const url = resolve(filename)
       if (!url) throw new Error(`Desktop update file was not uploaded: ${filename}`)
       files.push({ url, sha512: "", size: 0 })
       return
