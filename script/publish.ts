@@ -11,7 +11,7 @@ process.chdir(dir)
 const tag = `v${Script.version}`
 
 if (Script.channel === "beta" && Script.release) {
-  console.log("\n=== GitHub beta release ===\n")
+  console.log("\n=== desktop beta release ===\n")
   await $`bun ./packages/desktop/scripts/publish.ts`
   process.exit(0)
 }
