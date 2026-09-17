@@ -6,13 +6,15 @@ import { Tooltip } from "@opencode/ui/tooltip"
 import { Show, type ParentProps } from "solid-js"
 import { useLanguage } from "@/runtime/i18n/language"
 import { useCommand } from "@/shell/commands/command"
+import { useSummaryStatus } from "./status"
 import "./summary.css"
 
 export function SummaryPopover(
-  props: ParentProps<{ active?: boolean; open: boolean; onOpenChange: (open: boolean) => void }>,
+  props: ParentProps<{ active?: boolean; directory?: string; open: boolean; onOpenChange: (open: boolean) => void }>,
 ) {
   const language = useLanguage()
   const command = useCommand()
+  const status = useSummaryStatus(() => props.directory)
   // Cached timelines remain mounted; only the visible summary owns the command.
   command.register(() =>
     props.active === false
@@ -45,7 +47,18 @@ export function SummaryPopover(
       >
         <Popover.Trigger
           as={IconButton}
-          icon={<Icon name="window-analytics" />}
+          icon={
+            <span class="session-summary-trigger-icon">
+              <Icon name="window-analytics" />
+              <Show when={status().noteworthy}>
+                <span
+                  data-slot="status-indicator"
+                  class={`session-summary-trigger-status ${status().server}`}
+                  aria-hidden="true"
+                />
+              </Show>
+            </span>
+          }
           variant="ghost-muted"
           size="large"
           state={props.open ? "pressed" : undefined}

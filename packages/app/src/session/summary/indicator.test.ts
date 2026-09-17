@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test"
-import { hasNonBlockingServiceIssue, hasServiceNeedingAttention, serverStatusDotClass } from "./indicator"
+import {
+  hasNonBlockingServiceIssue,
+  hasServiceNeedingAttention,
+  serverStatusDotClass,
+  serviceStatusDotClass,
+  summaryStatus,
+} from "./indicator"
 
 describe("serverStatusDotClass", () => {
   test("uses the success token while the server and services are healthy", () => {
@@ -58,5 +64,25 @@ describe("service status", () => {
     expect(hasNonBlockingServiceIssue(["connected", "pending", "disabled"])).toBe(false)
     expect(hasServiceNeedingAttention(["needs_auth"])).toBe(true)
     expect(hasServiceNeedingAttention(["failed", "connected", "pending", "disabled"])).toBe(false)
+  })
+
+  test("shows a dot only for noteworthy MCP states", () => {
+    expect(serviceStatusDotClass(["needs_auth"])).toBe("bg-v2-background-bg-accent")
+    expect(serviceStatusDotClass(["failed"])).toBe("bg-icon-warning-base")
+    expect(serviceStatusDotClass(["connected", "pending", "disabled"])).toBeUndefined()
+  })
+
+  test("marks the summary trigger only for errors and attention", () => {
+    expect(summaryStatus({ ready: true, serverHealth: true, mcp: ["connected"], connecting: false }).noteworthy).toBe(
+      false,
+    )
+    expect(summaryStatus({ ready: true, serverHealth: true, mcp: ["needs_auth"], connecting: false })).toMatchObject({
+      noteworthy: true,
+      mcp: "bg-v2-background-bg-accent",
+    })
+    expect(summaryStatus({ ready: true, serverHealth: false, mcp: [], connecting: false })).toMatchObject({
+      noteworthy: true,
+      server: "bg-icon-critical-base",
+    })
   })
 })
