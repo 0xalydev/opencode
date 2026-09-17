@@ -135,7 +135,7 @@ export const SettingsProjects: Component<{
             >
               <div
                 data-component="settings-project-empty-card"
-                class="settings-project-empty-card flex flex-col items-center gap-2 py-12 text-center"
+                class="settings-project-empty-card flex flex-col items-center gap-2 py-[72px] text-center"
               >
                 <Icon name="folder" size="large" class="mb-2 text-v2-icon-icon-muted" />
                 <div class="text-13-medium text-v2-text-text-base">
