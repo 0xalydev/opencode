@@ -258,6 +258,24 @@ test("Projects shows an add action in its empty state", async ({ page }) => {
   await expect(picker).toBeHidden()
 })
 
+test("a single project uses the full grouped hover surface", async ({ page }) => {
+  const view = ui(page)
+  await view.settings.getByRole("tab", { name: "Projects", exact: true }).click()
+  const list = view.settings.getByRole("list")
+  const project = list.getByRole("listitem")
+  await expect(project).toHaveCount(1)
+  await expect
+    .poll(() =>
+      project.evaluate((item) => {
+        const row = item.getBoundingClientRect()
+        const group = item.parentElement?.parentElement?.getBoundingClientRect()
+        if (!group) return []
+        return [row.top - group.top, row.left - group.left, group.right - row.right, group.bottom - row.bottom]
+      }),
+    )
+    .toEqual([0, 0, 0, 0])
+})
+
 test("Projects search renders with a qualifying persisted inventory", async ({ page }) => {
   const projects = projectList(8)
   await page.route("**/api/project", (route) => route.fulfill({ json: projects }))

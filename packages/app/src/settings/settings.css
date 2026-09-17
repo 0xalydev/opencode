@@ -868,6 +868,17 @@
   background: var(--v2-border-border-base);
 }
 
+.settings-project-row-shell:only-child {
+  margin-inline: 0;
+  padding-block: 0;
+}
+
+.settings-project-row-shell:only-child .settings-project-card {
+  height: 48px;
+  padding-inline: 16px;
+  border-radius: 8px;
+}
+
 .settings-project-card {
   display: flex;
   height: 40px;
