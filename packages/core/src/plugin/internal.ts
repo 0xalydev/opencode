@@ -217,7 +217,6 @@ const pre = [
   SkillPlugin.Plugin,
   VcsHgPlugin.Plugin,
   ModelsDevPlugin,
-  // Provider plugins register after the generic strategy so a later, provider-specific one wins.
   NativeCompactionPlugin.Plugin,
   ...ProviderPlugins,
   ...WebSearchPlugins,

@@ -6,11 +6,7 @@ import { Effect } from "effect"
 import { SessionCompaction } from "../session/compaction.js"
 import type { PluginInternal } from "./internal.js"
 
-/**
- * Native compaction for routes that expose typed compaction operations. A streamed trigger is
- * preferred because it travels the session's normal request path and keeps recent real user input
- * ahead of the checkpoint; endpoint-only routes use the standalone compaction endpoint as returned.
- */
+/** Native compaction for routes with typed compaction operations: streamed trigger when available, else the endpoint. */
 export const Plugin = define({
   id: "opencode.compaction.native",
   effect: Effect.fn("NativeCompactionPlugin")(function* () {

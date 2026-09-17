@@ -94,13 +94,10 @@ export type Settings = {
 }
 
 export type NativeInput = {
-  /** The prepared compaction request, after model request hooks and route compatibility checks. */
+  /** Prepared after model request hooks and route provenance checks. */
   readonly request: LLMRequest
   readonly options: StreamOptions
-  /**
-   * Whole, real user messages from the durable transcript within the retained-token allowance.
-   * Mechanisms whose response carries only a checkpoint place it after these.
-   */
+  /** Whole, real user messages within the retained-token allowance, for checkpoint-only mechanisms. */
   readonly retained: Effect.Effect<ReadonlyArray<Message>>
 }
 
@@ -109,16 +106,12 @@ export type NativeResult = {
   readonly usage?: Usage
 }
 
-/**
- * Produces the provider's replacement window for a prepared request, or `undefined` when the
- * route offers no mechanism this strategy handles. Core owns provenance, retries, overflow
- * recovery, and persistence of the returned window.
- */
+/** Returns the provider's replacement window, or `undefined` when this strategy has no mechanism for the route. */
 export type NativeStrategy = (input: NativeInput) => Effect.Effect<NativeResult, AIError> | undefined
 
 export type Editor = {
   configure: (settings: Partial<Settings>) => void
-  /** Later registrations take precedence over earlier ones. */
+  /** Later registrations take precedence. */
   native: (strategy: NativeStrategy) => void
 }
 
@@ -534,15 +527,18 @@ export const layer = Layer.effect(
         return yield* reject(
           "Provider compaction requires the endpoint in provider/model settings, not a model.request rewrite",
         )
-      // Model resolution admits provider policies only for routes with a compaction operation; a plugin
-      // still has to claim the mechanism, so a missing strategy is a configuration failure, not a defect.
-      const retained = original(context.session.id).pipe(
-        Effect.map((messages) => retainUsers(messages, context.model, state.get().tokens)),
-      )
       const native = state
         .get()
         .native.toReversed()
-        .map((strategy) => strategy({ request, options: prepared.options, retained }))
+        .map((strategy) =>
+          strategy({
+            request,
+            options: prepared.options,
+            retained: original(context.session.id).pipe(
+              Effect.map((messages) => retainUsers(messages, context.model, state.get().tokens)),
+            ),
+          }),
+        )
         .find((effect) => effect !== undefined)
       if (!native)
         return yield* reject(

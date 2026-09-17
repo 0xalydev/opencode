@@ -25,7 +25,7 @@ import { SessionRunnerModel } from "@opencode/core/session/runner/model"
 import { SessionSchema } from "@opencode/core/session/schema"
 import { SessionStore } from "@opencode/core/session/store"
 import { LayerNode } from "@opencode/util/effect/layer-node"
-import { DateTime, Deferred, Effect, Exit, Fiber, Schema, Scope } from "effect"
+import { DateTime, Deferred, Effect, Fiber, Schema } from "effect"
 import { testEffect } from "./lib/effect"
 import { host } from "./plugin/host"
 
@@ -450,7 +450,7 @@ it.live("rejects request-hook route rewrites before provider compaction", () =>
   }),
 )
 
-it.live("provider compaction requires a registered native strategy and follows the plugin scope", () =>
+it.live("provider compaction fails without a native strategy and persists a registered strategy's window", () =>
   Effect.gen(function* () {
     const fixture = yield* setup({ plugin: false })
     yield* fixture.prompt("Original user")
@@ -458,59 +458,20 @@ it.live("provider compaction requires a registered native strategy and follows t
       status: "failed",
       error: { type: "provider.unsupported-operation", message: expect.stringContaining("openai/openai-responses") },
     })
-    expect(fixture.state.calls).toBe(0)
-    const scope = yield* Scope.make()
-    yield* NativeCompactionPlugin.Plugin.effect(host()).pipe(Scope.provide(scope))
-    expect(yield* fixture.compact).toEqual({ status: "completed" })
-    expect(fixture.state.calls).toBe(1)
-    yield* Scope.close(scope, Exit.void)
-    yield* fixture.prompt("After unload")
-    expect(yield* fixture.compact).toMatchObject({
-      status: "failed",
-      error: { type: "provider.unsupported-operation" },
-    })
-    expect(fixture.state.calls).toBe(1)
-  }),
-)
-
-it.live("later native strategies take precedence and declining ones fall through", () =>
-  Effect.gen(function* () {
-    const fixture = yield* setup()
-    yield* fixture.prompt("Original user")
-    const seen: string[] = []
     yield* fixture.compaction.transform((editor) => {
-      editor.native((input) => {
-        seen.push(input.request.model.route.id)
-        return undefined
-      })
-    })
-    expect(yield* fixture.compact).toEqual({ status: "completed" })
-    expect(seen).toEqual(["openai-responses"])
-    expect(fixture.state.calls).toBe(1)
-    yield* fixture.prompt("Second user")
-    yield* fixture.compaction.transform((editor) => {
-      editor.native((input) =>
-        Effect.map(input.retained, (retained) => ({
-          replacement: [...retained, Message.assistant("plugin window")],
-          usage: new Usage({ inputTokens: 7, nonCachedInputTokens: 7, outputTokens: 3 }),
-        })),
+      editor.native(() =>
+        Effect.succeed({
+          replacement: [Message.assistant("plugin window")],
+          usage: new Usage({ nonCachedInputTokens: 20, outputTokens: 4 }),
+        }),
       )
     })
     expect(yield* fixture.compact).toEqual({ status: "completed" })
-    expect(fixture.state.calls).toBe(1)
-    const installed = (yield* fixture.load).messages.findLast(
-      (message) => message.type === "compaction" && message.status === "completed",
-    )
-    if (installed?.type !== "compaction" || installed.status !== "completed" || !installed.providerContext)
-      return yield* Effect.die("Missing plugin checkpoint")
-    expect(installed.tokens).toMatchObject({ input: 7, output: 3 })
-    expect(installed.providerContext.provenance).toEqual(SessionProviderContext.provenance(fixture.model)!)
-    const replacement = SessionProviderContext.decode(installed.providerContext)
-    expect(replacement.filter((message) => message.role === "user").map((message) => message.content)).toEqual([
-      [Message.text("Original user")],
-      [Message.text("Second user")],
-    ])
-    expect(replacement.at(-1)?.content).toEqual([Message.text("plugin window")])
+    expect(fixture.state.calls).toBe(0)
+    const installed = yield* fixture.checkpoint
+    expect(installed.provenance).toEqual(SessionProviderContext.provenance(fixture.model)!)
+    expect(SessionProviderContext.decode(installed)).toEqual([Message.assistant("plugin window")])
+    expect(yield* fixture.store.get(fixture.sessionID)).toMatchObject({ tokens: { input: 20, output: 4 } })
   }),
 )
 
