@@ -1,7 +1,8 @@
 import type {
-  ServerStatusOutput,
+  ServerInfoOutput,
   LocationGetInput,
   LocationGetOutput,
+  LocationReloadOutput,
   AgentListInput,
   AgentListOutput,
   AgentGetInput,
@@ -397,9 +398,9 @@ export function make(options: ClientOptions) {
 
   return {
     server: {
-      status: (requestOptions?: RequestOptions) =>
-        request<ServerStatusOutput>(
-          { method: "GET", path: `/api/status`, successStatus: 200, declaredStatuses: [400, 401], empty: false },
+      info: (requestOptions?: RequestOptions) =>
+        request<ServerInfoOutput>(
+          { method: "GET", path: `/api/info`, successStatus: 200, declaredStatuses: [400, 401], empty: false },
           requestOptions,
         ),
     },
@@ -413,6 +414,17 @@ export function make(options: ClientOptions) {
             successStatus: 200,
             declaredStatuses: [400, 401],
             empty: false,
+          },
+          requestOptions,
+        ),
+      reload: (requestOptions?: RequestOptions) =>
+        request<LocationReloadOutput>(
+          {
+            method: "POST",
+            path: `/api/location/reload`,
+            successStatus: 204,
+            declaredStatuses: [400, 401, 503],
+            empty: true,
           },
           requestOptions,
         ),
