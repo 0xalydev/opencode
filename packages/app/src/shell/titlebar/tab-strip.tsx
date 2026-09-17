@@ -52,7 +52,7 @@ function SessionTabSlot(props: {
       data-orientation={props.orientation}
       class="relative flex"
       classList={{
-        "w-56 min-w-7 max-w-56 flex-shrink": props.orientation === "horizontal",
+        "w-56 min-w-[54px] max-w-56 flex-shrink": props.orientation === "horizontal",
         "w-full shrink-0": props.orientation === "vertical",
       }}
     >
@@ -211,7 +211,7 @@ function DraftTabSlot(props: {
       data-orientation={props.orientation}
       class="relative flex"
       classList={{
-        "w-56 min-w-7 max-w-56 flex-shrink": props.orientation === "horizontal",
+        "w-56 min-w-[54px] max-w-56 flex-shrink": props.orientation === "horizontal",
         "w-full shrink-0": props.orientation === "vertical",
       }}
     >

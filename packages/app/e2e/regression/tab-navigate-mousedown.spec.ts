@@ -106,6 +106,64 @@ test("keyboard navigation follows the visible tab order", async ({ page }) => {
   await expect(page).toHaveURL(new RegExp(`${hrefC.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`))
 })
 
+test("cramped active tab keeps normal content and a trailing close button", async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 720 })
+  await mockServer(page)
+  await page.addInitScript(
+    ({ server, sessionA, directory }) => {
+      localStorage.setItem(
+        "opencode.window.browser.dat:tabs",
+        JSON.stringify([
+          { type: "session", server, sessionId: sessionA },
+          ...Array.from({ length: 12 }, (_, index) => ({
+            type: "draft",
+            server,
+            directory,
+            draftID: `draft_cramped_${index}`,
+          })),
+        ]),
+      )
+    },
+    { server, sessionA: sessionA.id, directory: sessionA.directory },
+  )
+
+  const href = `/server/${base64Encode(server)}/session/${sessionA.id}`
+  await page.goto(href)
+
+  const slot = page.locator(`[data-titlebar-tab-slot]:has(a[href="${href}"])`)
+  const tab = slot.locator("[data-titlebar-tab]")
+  const link = slot.locator("[data-titlebar-tab-link]")
+  const avatar = slot.locator('[data-slot="project-avatar-slot"]')
+  const title = slot.locator("[data-titlebar-tab-title]")
+  const close = slot.getByRole("button", { name: "Close tab", exact: true })
+  await expect(slot).toHaveAttribute("data-active", "true")
+  await expect(link).toHaveCSS("mask-image", "none")
+  await expect(avatar).toBeVisible()
+  await expect(title).toBeVisible()
+  await expect(close).toBeVisible()
+  await expect.poll(async () => (await tab.boundingBox())?.width).toBe(54)
+  await expect
+    .poll(async () => {
+      const tabBox = await tab.boundingBox()
+      const avatarBox = await avatar.boundingBox()
+      if (!tabBox || !avatarBox) return null
+      return Math.round(avatarBox.x - tabBox.x)
+    })
+    .toBe(6)
+  await expect
+    .poll(async () => {
+      const tabBox = await tab.boundingBox()
+      const avatarBox = await avatar.boundingBox()
+      const closeBox = await close.boundingBox()
+      if (!tabBox || !avatarBox || !closeBox) return null
+      return {
+        iconGap: Math.round(closeBox.x - avatarBox.x - avatarBox.width),
+        trailingGap: Math.round(tabBox.x + tabBox.width - closeBox.x - closeBox.width),
+      }
+    })
+    .toEqual({ iconGap: 6, trailingGap: 6 })
+})
+
 test("mobile drawer exposes close controls and navigates between tabs", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 720 })
   await mockServer(page)
