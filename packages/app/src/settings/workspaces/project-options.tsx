@@ -18,6 +18,7 @@ export const ProjectOptions: Component<{
   open?: boolean
   onOpenChange?: (open: boolean) => void
   onEdit?: () => void
+  onRename?: () => void
   onClose?: () => void
   class?: string
   size?: "small" | "normal" | "large"
@@ -87,6 +88,9 @@ export const ProjectOptions: Component<{
         <Menu.Content>
           <Show when={props.onEdit} keyed>
             {(edit) => <Menu.Item onSelect={edit}>{language.t("common.edit")}</Menu.Item>}
+          </Show>
+          <Show when={props.onRename} keyed>
+            {(rename) => <Menu.Item onSelect={rename}>{language.t("common.rename")}</Menu.Item>}
           </Show>
           <Show when={canReveal()}>
             <Menu.Item onSelect={reveal}>{language.t(fileManagerApp(platform.os ?? "unknown").actionLabel)}</Menu.Item>

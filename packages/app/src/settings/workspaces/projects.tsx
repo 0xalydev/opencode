@@ -8,13 +8,12 @@ import { useLanguage } from "@/runtime/i18n/language"
 import { useGlobal } from "@/runtime/server/runtime"
 import { ServerConnection } from "@/runtime/server/registry"
 import { displayName, homeProjectDirectories } from "@/shell/layout/helpers"
-import { ProjectIcon } from "@/shell/layout/project-icon"
 import type { LocalProject } from "@/shell/state/layout"
 import { useDirectoryPicker } from "@/workspaces/selection/picker"
 import { addProjects } from "@/home/projects/add"
 import { settingsProjects } from "../servers/inventory"
 import { SettingsSearchEmpty } from "../search-empty"
-import { ProjectOptions } from "./project-options"
+import { SettingsProjectRow } from "./project-row"
 import "@/settings/search.css"
 import "@/settings/settings.css"
 
@@ -27,7 +26,6 @@ export const SettingsProjects: Component<{
   const pickDirectory = useDirectoryPicker()
   const [store, setStore] = createStore({
     filter: "",
-    menu: undefined as string | undefined,
     overflow: { start: false, end: false },
   })
   let search: HTMLInputElement | undefined
@@ -152,35 +150,7 @@ export const SettingsProjects: Component<{
         >
           <div role="list" class="settings-project-list">
             <For each={filtered()}>
-              {(project) => (
-                <div class="settings-project-row-shell">
-                  <div
-                    role="listitem"
-                    data-component="settings-project-card"
-                    data-menu={store.menu === project.worktree ? "true" : undefined}
-                    class="settings-project-card"
-                  >
-                    <button
-                      type="button"
-                      aria-label={displayName(project)}
-                      class="flex h-full min-w-0 flex-1 items-center gap-2 rounded-[4px] bg-transparent text-start focus-visible:outline-none focus-visible:[box-shadow:inset_0_0_0_1px_var(--v2-border-border-focus)]"
-                      onClick={() => props.onOpenProject(project)}
-                    >
-                      <ProjectIcon project={project} class="shrink-0" />
-                      <bdi class="truncate text-[13px] font-[530] leading-5 tracking-[-0.04px] text-v2-text-text-base">
-                        {displayName(project)}
-                      </bdi>
-                    </button>
-                    <ProjectOptions
-                      server={props.server}
-                      project={project}
-                      open={store.menu === project.worktree}
-                      onOpenChange={(open) => setStore("menu", open ? project.worktree : undefined)}
-                      onEdit={() => props.onOpenProject(project)}
-                    />
-                  </div>
-                </div>
-              )}
+              {(project) => <SettingsProjectRow project={project} server={props.server} onOpen={props.onOpenProject} />}
             </For>
           </div>
         </Show>

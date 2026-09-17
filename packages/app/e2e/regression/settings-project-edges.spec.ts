@@ -25,6 +25,13 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.route("**/api/project", (route) =>
         route.fulfill({ json: projects, headers: { "access-control-allow-origin": "*" } }),
       )
+      await page.route("**/api/project/project-0", async (route) => {
+        const update = route.request().postDataJSON()
+        await route.fulfill({
+          json: { ...projects[0], ...update },
+          headers: { "access-control-allow-origin": "*" },
+        })
+      })
       await page.addInitScript((projects) => {
         localStorage.setItem(
           "opencode.global.dat:server",
@@ -93,7 +100,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       const more = projectCard.getByRole("button", { name: "More options", exact: true })
       await more.click()
       const menu = page.getByRole("menu")
-      await expect(menu.getByRole("menuitem")).toHaveText(["Edit", "Clear notifications", "Close"])
+      await expect(menu.getByRole("menuitem")).toHaveText(["Edit", "Rename", "Clear notifications", "Close"])
       await menu.getByRole("menuitem", { name: "Close", exact: true }).hover()
       await expect(projectCard).toHaveCSS("background-color", hoverColor)
       await expect(menu.getByRole("separator")).toHaveCount(1)
@@ -148,6 +155,19 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(panel.getByRole("heading", { name: "Projects", exact: true })).toBeInViewport({ ratio: 1 })
 
       await page.setViewportSize({ width: 1280, height: 720 })
+      await more.click()
+      await menu.getByRole("menuitem", { name: "Rename", exact: true }).click()
+      const rename = panel.getByRole("textbox", { name: "Rename", exact: true })
+      await expect(rename).toBeFocused()
+      await expect(rename).toHaveValue("rebase")
+      await rename.fill("Renamed project")
+      const renamed = page.waitForRequest(
+        (request) => request.method() === "PATCH" && new URL(request.url()).pathname === "/api/project/project-0",
+      )
+      await rename.press("Enter")
+      expect((await renamed).postDataJSON()).toEqual({ name: "Renamed project" })
+      await expect(panel.getByRole("button", { name: "Renamed project", exact: true })).toBeVisible()
+
       await panel.getByRole("button", { name: "Add project", exact: true }).click()
       const picker = page.getByRole("dialog", { name: "Open project", exact: true })
       await picker.getByRole("combobox").fill("/projects/added")
