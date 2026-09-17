@@ -236,9 +236,6 @@ export const dict = {
   "provider.connect.remote.description":
     "Your OpenCode credentials will be stored on this server. Models will be available through this server.",
   "provider.connect.form.unsupported": "This authentication form contains unsupported fields",
-  "provider.setup.title": "Start with OpenCode",
-  "provider.setup.other": "Other providers",
-  "provider.setup.settings": "You can change this later in Settings → Providers.",
   "provider.connect.title.anthropicProMax": "Login with Claude Pro/Max",
   "provider.connect.selectMethod": "Select login method for {{provider}}.",
   "provider.connect.method.apiKey": "API key",

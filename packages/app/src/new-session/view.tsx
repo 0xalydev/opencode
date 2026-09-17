@@ -25,8 +25,6 @@ import type { NewSessionWorkspaceController } from "./workspace/controller"
 import { NewSessionWordmark } from "./wordmark"
 import { SummaryPopover } from "@/session/summary/popover"
 import type { DraftMcpControls } from "./mcp"
-import { ProviderSetup } from "@/providers/connect/setup"
-import { usePlatform } from "@/runtime/platform/platform"
 
 const NewSessionSummary = lazy(async () => {
   const { NewSessionSummary } = await import("./summary")
@@ -52,10 +50,6 @@ export function NewSessionView(props: {
   mcp: DraftMcpControls
 }) {
   const [store, setStore] = createStore({ summary: false })
-  const platform = usePlatform()
-  const sdk = useWorkspaceLocation()
-  const providers = useProviders(() => sdk().directory)
-  const setup = () => platform.platform === "desktop" && providers.ready() && !providers.usable()
   const [onboarding, setOnboarding, , onboardingReady] = persisted(
     Persist.global("workspace-onboarding"),
     WorkspaceOnboardingSchema,
@@ -95,20 +89,11 @@ export function NewSessionView(props: {
             </Suspense>
           </SummaryPopover>
         </div>
-        <div
-          class="absolute inset-x-0 top-[25.375%] flex justify-center px-6"
-          classList={{ "bottom-12 overflow-y-auto": setup() }}
-        >
+        <div class="absolute inset-x-0 top-[25.375%] flex justify-center px-6">
           <div class={NEW_SESSION_CONTENT_WIDTH}>
             <NewSessionWordmark />
             <div class="mt-8 flex flex-col gap-8">
               <Composer model={props.composer} />
-              <ProviderSetup
-                visible={setup()}
-                directory={sdk().directory}
-                selection={props.composer.model.selection}
-                onDone={props.composer.restoreFocus}
-              />
               <Show when={props.project.empty()}>
                 <PromptProjectAddButton controller={props.project} />
               </Show>
@@ -145,6 +130,8 @@ export function NewSessionView(props: {
           </div>
         </div>
         <NewSessionTips
+          selection={props.composer.model.selection}
+          onDone={props.composer.restoreFocus}
           workspaceEligible={
             !!props.project.selected() &&
             props.workspace.bar.visible() &&
@@ -158,7 +145,12 @@ export function NewSessionView(props: {
   )
 }
 
-function NewSessionTips(props: { workspaceEligible: boolean; onWorkspace: () => void }) {
+function NewSessionTips(props: {
+  selection: ComposerModel["model"]["selection"]
+  onDone: () => void
+  workspaceEligible: boolean
+  onWorkspace: () => void
+}) {
   const language = useLanguage()
   const dialog = useDialog()
   const sdk = useWorkspaceLocation()
@@ -209,7 +201,9 @@ function NewSessionTips(props: { workspaceEligible: boolean; onWorkspace: () => 
       return
     }
     void import("@/providers/connect/dialog").then(({ DialogConnectProvider }) => {
-      void dialog.show(() => <DialogConnectProvider directory={sdk().directory} />)
+      void dialog.show(() => (
+        <DialogConnectProvider directory={sdk().directory} selection={props.selection} onDone={props.onDone} />
+      ))
     })
   }
   const dismiss = () => {

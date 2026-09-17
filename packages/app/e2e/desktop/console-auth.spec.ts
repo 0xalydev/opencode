@@ -70,10 +70,14 @@ async function fixture(
     statusError: false,
   }
   const server = remote ? "http://production.example:4096" : undefined
-  const currentIntegration = {
+  const currentIntegration = () => ({
     ...integration,
-    connections: options.existingConnection ? [{ type: "env", name: "OPENCODE_API_KEY" }] : [],
-  }
+    connections: options.existingConnection
+      ? [{ type: "env", name: "OPENCODE_API_KEY" }]
+      : state.status === "complete"
+        ? [{ type: "credential", id: "cred_console", label: "Anomaly" }]
+        : [],
+  })
   await mockOpenCodeServer(page, {
     server,
     directory,
@@ -98,8 +102,8 @@ async function fixture(
     if (request.method() === "OPTIONS") return route.fallback()
     const headers = { "access-control-allow-origin": "*" }
     const json = (data: unknown) => route.fulfill({ headers, json: { location, data } })
-    if (path === "/api/integration") return json([currentIntegration])
-    if (path === "/api/integration/opencode") return json(currentIntegration)
+    if (path === "/api/integration") return json([currentIntegration()])
+    if (path === "/api/integration/opencode") return json(currentIntegration())
     if (path === "/api/integration/opencode/connect/oauth") {
       expect(request.postDataJSON()).toEqual({ methodID: "device" })
       state.starts++
@@ -179,9 +183,11 @@ async function fixture(
     const composer = page.locator('[data-component="composer-editor"]')
     await expect(composer).toBeEditable()
     await composer.fill("Keep this draft throughout sign-in")
-    await expect(page.locator('[data-component="provider-setup"]')).toBeVisible()
-    await expect(page.locator('[data-component="new-session-tip"]')).toContainText("Connect to 75+ providers")
-    await page.getByRole("button", { name: "Continue with OpenCode Console" }).click()
+    const tip = page.locator('[data-component="new-session-tip"]')
+    await expect(tip).toContainText("Connect to 75+ providers")
+    await tip.getByRole("button", { name: /Connect to 75\+ providers/ }).click()
+    await dialog.getByRole("button", { name: /^OpenCode Console / }).click()
+    await dialog.getByRole("button", { name: "Continue with OpenCode Console" }).click()
     await expect(dialog.getByRole("group", { name: "Device code: TFXS-STXG" })).toBeVisible()
     return { state, dialog }
   }
@@ -376,7 +382,6 @@ test("setup preserves the draft and Continue restores composer focus", async ({ 
   await expect(composer).toHaveText("Keep this draft throughout sign-in")
   await expect(composer).toBeFocused()
   await expect(page.locator('[data-action="composer-model"]')).toContainText("Console Sonnet")
-  await expect(page.locator('[data-component="provider-setup"]')).toBeHidden()
 })
 
 test("catalog refresh failure retries without asking for authorization again", async ({ page }) => {
