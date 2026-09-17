@@ -136,6 +136,7 @@ export type SessionDomain = Pick<
   | "interrupt"
   | "update"
   | "move"
+  | "compact"
   | "wait"
   | "context"
 > & {

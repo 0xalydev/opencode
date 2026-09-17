@@ -1,13 +1,18 @@
 import { expect } from "bun:test"
+import { Bus } from "@opencode/core/bus"
 import { Location } from "@opencode/core/location"
 import { Plugin } from "@opencode/core/plugin"
 import { PluginHost } from "@opencode/core/plugin/host"
 import { Provider } from "@opencode/core/provider"
 import { Session } from "@opencode/core/session"
+import { SessionEvent } from "@opencode/core/session/event"
 import { Tool } from "@opencode/core/tool"
 import { OpenCodeTools } from "@opencode/core/tool/plugin/opencode"
 import { Model } from "@opencode/schema/model"
-import { Effect } from "effect"
+import { Money } from "@opencode/schema/money"
+import { SessionMessage } from "@opencode/schema/session-message"
+import type { TokenUsage } from "@opencode/schema/token-usage"
+import { Effect, Schema } from "effect"
 import { testEffect } from "./lib/effect"
 import { executeTool, toolIdentity } from "./lib/tool"
 import { PluginTestLayer } from "./plugin/fixture"
@@ -25,6 +30,116 @@ const gammaOld = {
   cost: [],
   status: "active",
 }
+
+it.live("reports the latest context measurement separately from cumulative session usage", () =>
+  Effect.gen(function* () {
+    const fixture = yield* sessionInfoFixture
+    expect(yield* fixture.get()).toMatchObject({
+      sessionID: fixture.session.id,
+      title: "Context info",
+      directory: fixture.session.location.directory,
+      agent: "build",
+      model: fixture.model,
+      limits: { context: 100_000, input: 80_000, output: 10_000 },
+      cost: 0,
+      context: { tokens: null, percent: null, remaining: null, source: "unavailable", messageID: null },
+    })
+
+    yield* fixture.record({ input: 50_000, output: 1_000, reasoning: 0, cache: { read: 0, write: 0 } })
+    const messageID = yield* fixture.record({
+      input: 200,
+      output: 100,
+      reasoning: 100,
+      cache: { read: 1_500, write: 100 },
+    })
+    // An in-flight step has no settled usage yet; its presence must not turn the reading into zero.
+    yield* fixture.bus.publish(SessionEvent.Step.Started, {
+      sessionID: fixture.session.id,
+      assistantMessageID: SessionMessage.ID.create(),
+      agent: toolIdentity.agent,
+      model: fixture.model,
+    })
+    expect(yield* fixture.get()).toMatchObject({
+      cost: 0.2,
+      context: { tokens: 2_000, percent: 2, remaining: 98_000, source: "last_completed_step", messageID },
+    })
+
+    yield* fixture.catalog.transform((editor) =>
+      editor.models.update(fixture.model.providerID, fixture.model.id, (model) => {
+        model.limit.context = 0
+      }),
+    )
+    expect(yield* fixture.get({ sessionID: fixture.session.id })).toMatchObject({
+      context: { tokens: 2_000, percent: null, remaining: null, source: "last_completed_step", messageID },
+    })
+  }),
+)
+
+it.live("invalidates context usage after compaction and a model switch", () =>
+  Effect.gen(function* () {
+    const fixture = yield* sessionInfoFixture
+    const tokens = { input: 70_000, output: 100, reasoning: 0, cache: { read: 0, write: 0 } }
+    yield* fixture.record(tokens)
+    yield* fixture.bus.publish(SessionEvent.Compaction.Started, {
+      sessionID: fixture.session.id,
+      reason: "manual",
+      recent: "",
+    })
+    yield* fixture.bus.publish(SessionEvent.Compaction.Ended, {
+      sessionID: fixture.session.id,
+      reason: "manual",
+      model: fixture.model,
+      text: "## Objective\n- Keep working",
+      recent: "",
+      tokens,
+    })
+    expect(yield* fixture.get()).toMatchObject({
+      context: { tokens: null, percent: null, remaining: null, source: "unavailable", messageID: null },
+    })
+
+    yield* fixture.record({ ...tokens, input: 2_000 })
+    const other = Model.Ref.make({ ...fixture.model, id: Model.ID.make("other") })
+    yield* fixture.sessions.switchModel({ sessionID: fixture.session.id, model: other })
+    expect(yield* fixture.get()).toMatchObject({
+      model: other,
+      limits: null,
+      context: { tokens: null, percent: null, remaining: null, source: "unavailable", messageID: null },
+    })
+    yield* fixture.record(tokens, other)
+    yield* fixture.sessions.switchModel({ sessionID: fixture.session.id, model: fixture.model })
+    // Switching back must not resurrect an older sample from before the intervening model's work.
+    expect(yield* fixture.get()).toMatchObject({ context: { tokens: null, source: "unavailable" } })
+  }),
+)
+
+it.live("reports an unknown compaction target through the plugin host", () =>
+  Effect.gen(function* () {
+    const plugins = yield* Plugin.Service
+    const sessions = yield* Session.Service
+    const location = yield* Location.Service
+    const registry = yield* Tool.Service
+    const pluginHost = yield* PluginHost.make(plugins)
+    yield* OpenCodeTools.Plugin.effect(pluginHost)
+    const session = yield* sessions.create({ location: Location.Ref.make({ directory: location.directory }) })
+
+    const result = yield* executeTool(registry, {
+      sessionID: session.id,
+      ...toolIdentity,
+      call: {
+        type: "tool-call",
+        id: "call-compact-missing",
+        name: "execute",
+        input: { code: 'return await tools.opencode.session_compact({ sessionID: "ses_missing" })' },
+      },
+    })
+
+    expect(result).toMatchObject({
+      metadata: { error: true },
+      content: [{ type: "text", text: "Unable to request compaction of session ses_missing" }],
+    })
+    expect(yield* sessions.inbox(session.id)).toEqual([])
+  }),
+)
 
 it.effect("groups available models by provider with paging", () =>
   Effect.gen(function* () {
@@ -132,3 +247,67 @@ it.effect("groups available models by provider with paging", () =>
     expect(yield* run({ provider: "other", query: "alpha" })).toEqual({ providers: [], total: 0, next: null })
   }),
 )
+
+const sessionInfoFixture = Effect.gen(function* () {
+  const bus = yield* Bus.Service
+  const catalog = yield* Provider.Service
+  const plugins = yield* Plugin.Service
+  const sessions = yield* Session.Service
+  const location = yield* Location.Service
+  const registry = yield* Tool.Service
+  const pluginHost = yield* PluginHost.make(plugins)
+  yield* OpenCodeTools.Plugin.effect(pluginHost)
+  const model = Model.Ref.make({ providerID: Provider.ID.make("test"), id: Model.ID.make("alpha") })
+  yield* catalog.transform((editor) =>
+    editor.models.update(model.providerID, model.id, (model) => {
+      model.limit = { context: 100_000, input: 80_000, output: 10_000 }
+    }),
+  )
+  const session = yield* sessions.create({
+    title: "Context info",
+    model,
+    location: Location.Ref.make({ directory: location.directory }),
+  })
+  return {
+    bus,
+    catalog,
+    sessions,
+    session,
+    model,
+    get: (input: { sessionID?: string } = {}) =>
+      executeTool(registry, {
+        sessionID: session.id,
+        ...toolIdentity,
+        call: {
+          type: "tool-call",
+          id: "call-session-info",
+          name: "execute",
+          input: { code: `return await tools.opencode.session_info(${JSON.stringify(input)})` },
+        },
+      }).pipe(
+        Effect.map((result) => {
+          expect(result.metadata?.error).not.toBe(true)
+          return Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Unknown))(
+            result.content?.[0]?.type === "text" ? result.content[0].text : "",
+          )
+        }),
+      ),
+    record: Effect.fn(function* (tokens: TokenUsage.Info, selected = model) {
+      const assistantMessageID = SessionMessage.ID.create()
+      yield* bus.publish(SessionEvent.Step.Started, {
+        sessionID: session.id,
+        assistantMessageID,
+        agent: toolIdentity.agent,
+        model: selected,
+      })
+      yield* bus.publish(SessionEvent.Step.Ended, {
+        sessionID: session.id,
+        assistantMessageID,
+        finish: "stop",
+        cost: Money.USD.make(0.1),
+        tokens,
+      })
+      return assistantMessageID
+    }),
+  }
+})

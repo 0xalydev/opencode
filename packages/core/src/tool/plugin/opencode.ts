@@ -3,10 +3,40 @@ export * as OpenCodeTools from "./opencode.js"
 import { SystemPart, ToolFailure } from "@opencode/ai"
 import type { Context } from "@opencode/plugin/effect/plugin"
 import type { SessionHooks } from "@opencode/plugin/effect/session"
+import { Agent } from "@opencode/schema/agent"
 import { Model } from "@opencode/schema/model"
 import { AbsolutePath } from "@opencode/schema/schema"
 import { Session } from "@opencode/schema/session"
+import { SessionMessage } from "@opencode/schema/session-message"
+import { TokenUsage } from "@opencode/schema/token-usage"
 import { Effect, Schema } from "effect"
+
+export const SessionInfoInput = Schema.Struct({
+  sessionID: Schema.optionalKey(Session.ID).annotate({ description: "Omit to inspect the current session." }),
+})
+
+const SessionInfoOutput = Schema.Struct({
+  sessionID: Session.ID,
+  parentID: Schema.NullOr(Session.ID),
+  title: Schema.NullOr(Schema.String),
+  directory: AbsolutePath,
+  agent: Schema.NullOr(Agent.ID),
+  model: Schema.NullOr(Model.Ref),
+  limits: Schema.NullOr(Model.Info.fields.limit).annotate({
+    description: "Model token limits. Null when the model is unavailable in this Location's catalog.",
+  }),
+  cost: Session.Info.fields.cost.annotate({ description: "Cumulative session cost in USD." }),
+  context: Schema.Struct({
+    tokens: Schema.NullOr(Schema.Finite),
+    percent: Schema.NullOr(Schema.Finite),
+    remaining: Schema.NullOr(Schema.Finite),
+    source: Schema.Literals(["last_completed_step", "unavailable"]),
+    messageID: Schema.NullOr(SessionMessage.ID),
+  }).annotate({
+    description:
+      "Latest completed step's input (including cache), output, and reasoning tokens; excludes subsequent messages and tool results. Not cumulative usage. Null values mean unknown, including after compaction or a model switch until fresh usage is recorded. Percentage and remaining tokens use limits.context.",
+  }),
+})
 
 export const RenameInput = Schema.Struct({
   sessionID: Schema.optionalKey(Session.ID).annotate({ description: "Omit to rename the current session." }),
@@ -23,6 +53,12 @@ export const MoveInput = Schema.Struct({
 })
 
 const MoveOutput = Schema.Struct({ sessionID: Session.ID, directory: AbsolutePath })
+
+export const CompactInput = Schema.Struct({
+  sessionID: Schema.optionalKey(Session.ID).annotate({ description: "Omit to compact the current session." }),
+})
+
+const CompactOutput = Schema.Struct({ sessionID: Session.ID, id: SessionMessage.ID })
 
 export const ModelsInput = Schema.Struct({
   query: Schema.optionalKey(Schema.String).annotate({
@@ -87,6 +123,65 @@ export const Plugin = {
             "Tools for managing OpenCode itself, such as working with sessions and searching the available models.",
         })
         draft.add({
+          name: "session_info",
+          description:
+            "Get session identity, model limits, cost, and the latest measured context usage. Omit sessionID for the current session. Check this before deciding to compact; low usage generally does not warrant compaction. Usage excludes work since the source message; unavailable does not mean zero.",
+          input: SessionInfoInput,
+          output: SessionInfoOutput,
+          options: { namespace: "opencode", codemode: true, pinned: true },
+          execute: (input, context) =>
+            Effect.gen(function* () {
+              const sessionID = input.sessionID ?? context.sessionID
+              const session = yield* ctx.session.get({ sessionID })
+              const messages = yield* ctx.session.context({ sessionID })
+              const latest = messages.findLast((message) => message.type === "assistant")
+              const model = session.model ?? latest?.model
+              const limits =
+                session.location.directory === ctx.location.directory &&
+                session.location.workspaceID === ctx.location.workspaceID
+                  ? (yield* ctx.model.list()).data.find(
+                      (item) => item.providerID === model?.providerID && item.id === model?.id,
+                    )?.limit
+                  : undefined
+              const last = messages.findLast(
+                (message) =>
+                  message.type === "assistant" &&
+                  message.time.completed !== undefined &&
+                  !message.error &&
+                  message.tokens !== undefined &&
+                  message.tokens.input + message.tokens.cache.read + message.tokens.cache.write > 0,
+              )
+              const measured =
+                !session.revert &&
+                last?.type === "assistant" &&
+                last.model.providerID === model?.providerID &&
+                last.model.id === model?.id
+                  ? last
+                  : undefined
+              const tokens = measured?.tokens ? TokenUsage.total(measured.tokens) : null
+              const capacity = limits && limits.context > 0 ? limits.context : undefined
+              return {
+                output: {
+                  sessionID,
+                  parentID: session.parentID ?? null,
+                  title: session.title ?? null,
+                  directory: session.location.directory,
+                  agent: session.agent ?? (sessionID === context.sessionID ? context.agent : latest?.agent) ?? null,
+                  model: model ?? null,
+                  limits: limits ?? null,
+                  cost: session.cost,
+                  context: {
+                    tokens,
+                    percent: tokens !== null && capacity ? Math.round((tokens / capacity) * 1000) / 10 : null,
+                    remaining: tokens !== null && capacity ? Math.max(0, capacity - tokens) : null,
+                    source: tokens === null ? ("unavailable" as const) : ("last_completed_step" as const),
+                    messageID: measured?.id ?? null,
+                  },
+                },
+              }
+            }).pipe(Effect.mapError((error) => new ToolFailure({ message: "Unable to get session info", error }))),
+        })
+        draft.add({
           name: "session_rename",
           description:
             "Rename a session, or omit sessionID to rename the current session. Use a short, specific title that summarizes the work being done.",
@@ -130,6 +225,26 @@ export const Plugin = {
                 (error) => new ToolFailure({ message: `Unable to move session to ${input.directory}`, error }),
               ),
             ),
+        })
+        draft.add({
+          name: "session_compact",
+          description:
+            "Request compaction of a session, or omit sessionID to compact the current session. Check session_info first; avoid compaction at low context usage unless the user explicitly requests it. Returns after the request is admitted; compaction runs at the next step boundary, after current tool calls finish.",
+          input: CompactInput,
+          output: CompactOutput,
+          options: { namespace: "opencode", codemode: true, pinned: true },
+          execute: (input, context) => {
+            const sessionID = input.sessionID ?? context.sessionID
+            return ctx.session.compact({ sessionID, delivery: "steer" }).pipe(
+              Effect.map((request) => ({
+                output: { sessionID, id: request.id },
+                content: `Requested compaction of session ${sessionID}. It will run at the next step boundary.`,
+              })),
+              Effect.mapError(
+                (error) => new ToolFailure({ message: `Unable to request compaction of session ${sessionID}`, error }),
+              ),
+            )
+          },
         })
         draft.add({
           name: "models",

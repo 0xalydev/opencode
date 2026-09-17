@@ -540,6 +540,7 @@ export const make = Effect.fn("PluginHost.make")(function* (
           yield* sessions.setPermissions({ sessionID: input.sessionID, permissions: input.permissions })
       }),
       move: sessions.move,
+      compact: sessions.compact,
       synthetic: sessions.synthetic,
       interrupt: (input) =>
         sessions

@@ -21,6 +21,7 @@ import { AnthropicMessages, OpenAIResponses } from "@opencode/ai/protocols"
 import { compileRequest } from "@opencode/ai/route/client"
 import { TestLLM } from "@opencode/ai/testing"
 import type { SessionHooks } from "@opencode/plugin/effect/session"
+import { fromPromise } from "@opencode/plugin/promise/adapter"
 import { Database } from "@opencode/core/database/database"
 import { makeLocationNode } from "@opencode/util/effect/app-node"
 import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
@@ -57,6 +58,7 @@ import { PluginHooks } from "@opencode/core/plugin/hooks"
 import { OptimizePlugin } from "@opencode/core/plugin/optimize"
 import { IdentityPlugin } from "@opencode/core/plugin/identity"
 import { QuestionTool } from "@opencode/core/tool/plugin/question"
+import { OpenCodeTools } from "@opencode/core/tool/plugin/opencode"
 import { Agent } from "@opencode/core/agent"
 import { Config } from "@opencode/core/config"
 import { Document, Info } from "@opencode/schema/config"
@@ -80,7 +82,9 @@ import { Cause, Context, Deferred, Effect, Exit, Fiber, Layer, Queue, Schema, Sc
 import { TestClock } from "effect/testing"
 import { asc, desc, eq, sql } from "drizzle-orm"
 import { testEffect } from "./lib/effect"
+import { registerToolPlugin } from "./lib/tool"
 import { promptLocationNode } from "./fixture/prompt-location"
+import { PhaseCompactionPlugin } from "./fixture/phase-compaction-plugin"
 import { LocationServiceMap } from "@opencode/core/location-service-map"
 import { Expected } from "./lib/session-message"
 import { permissionLayer } from "./lib/permission"
@@ -568,6 +572,34 @@ const setup = Effect.gen(function* () {
 })
 
 type Scenario = Effect.Success<typeof setup>
+
+const installSessionPlugin = Effect.fn(function* (s: Scenario, plugin: Parameters<typeof fromPromise>[0]) {
+  const hooks = yield* PluginHooks.Service
+  const models = yield* Model.Service
+  const session = yield* s.session.get(sessionID)
+  const info = new Location.Info({
+    ...session.location,
+    project: { id: session.projectID, directory: session.location.directory, canonical: session.location.directory },
+  })
+  yield* registerToolPlugin(fromPromise(plugin), {
+    location: info,
+    model: {
+      ...modelHost(models),
+      list: () =>
+        Effect.succeed({
+          location: info,
+          data: [Model.Info.default(Provider.ID.make(s.currentModel.provider), Model.ID.make(s.currentModel.id))],
+        }),
+    },
+    session: {
+      get: (input) => s.session.get(input.sessionID),
+      context: (input) => s.session.context(input.sessionID),
+      compact: s.session.compact,
+      hook: (name, callback) => hooks.register("session", name, callback),
+    },
+  })
+})
+
 const scenario = (
   name: string,
   body: (s: Scenario) => Effect.gen.Return<void, unknown, Layer.Success<typeof layer> | Scope.Scope>,
@@ -2435,6 +2467,116 @@ describe("SessionRunnerLLM", () => {
       status: "completed",
       summary: "## Objective\n- durable summary",
     })
+  })
+
+  scenario("lets an agent compact its own session through Code Mode and continue", function* (s) {
+    s.currentModel = recoveryModel
+    yield* registerToolPlugin(OpenCodeTools.Plugin, { session: { compact: s.session.compact } })
+    yield* s.llm.push(
+      TestLLM.tool("call-self-compact", "execute", { code: "return await tools.opencode.session_compact({})" }),
+      [LLMEvent.textDelta({ id: "summary", text: "## Objective\n- Continue after self-compaction" })],
+      TestLLM.text("Continued after compaction", "text-self-compact-continued"),
+    )
+
+    yield* s.runPrompt("Compact this session and continue working")
+
+    expect(s.requests).toHaveLength(3)
+    expect(yield* s.inbox).toEqual([])
+    const messages = (yield* s.messages).toReversed()
+    expect(messages.filter((message) => message.type === "assistant" || message.type === "compaction")).toMatchObject([
+      Expected.assistant({}, [Expected.completedTool({ id: "call-self-compact" }, {})]),
+      {
+        type: "compaction",
+        status: "completed",
+        reason: "manual",
+        summary: "## Objective\n- Continue after self-compaction",
+      },
+      Expected.assistant({}, [Expected.text("Continued after compaction")]),
+    ])
+    expect(JSON.stringify(s.requests[2].messages)).toContain("Continue after self-compaction")
+  })
+
+  for (const inputTokens of [undefined, 4_000, 120_000]) {
+    scenario(`public Promise phase plugin: ${inputTokens ?? "unknown"} input tokens`, function* (s) {
+      s.currentModel = recoveryModel
+      yield* s.llm.push(
+        inputTokens === undefined
+          ? TestLLM.text("Research finished", "phase-research")
+          : TestLLM.textWithUsage("Research finished", "phase-research", inputTokens),
+      )
+      yield* s.runPrompt("Research the change")
+      yield* installSessionPlugin(s, PhaseCompactionPlugin)
+      s.requests.length = 0
+
+      yield* s.llm.push(
+        TestLLM.tool("call-phase-checkpoint", "execute", {
+          code: 'return await tools.phase.checkpoint({ next: "Implement validation", preserve: ["Reuse the existing parser"] })',
+        }),
+        ...(inputTokens === 120_000 ? [TestLLM.text("## Objective\n- Complete the change", "phase-summary")] : []),
+        TestLLM.text("Implementation continued", "phase-continued"),
+      )
+      yield* s.runPrompt("Proceed to implementation")
+
+      expect(s.requests).toHaveLength(inputTokens === 120_000 ? 3 : 2)
+      expect(s.requests[0].system.some((part) => part.text.includes("At a meaningful phase boundary"))).toBe(true)
+      const messages = yield* s.messages
+      const checkpoint = messages.find((message) => message.type === "compaction")
+      const call = messages
+        .flatMap((message) => (message.type === "assistant" ? message.content : []))
+        .find((part) => part.type === "tool" && part.id === "call-phase-checkpoint")
+      expect(call).toMatchObject(
+        Expected.completedTool(
+          { id: "call-phase-checkpoint" },
+          {
+            content: [Expected.text(expect.stringContaining(inputTokens === 120_000 ? '"requested"' : '"skipped"'))],
+          },
+        ),
+      )
+      expect(yield* s.inbox).toEqual([])
+      if (inputTokens !== 120_000) {
+        expect(checkpoint).toBeUndefined()
+        return
+      }
+      expect(checkpoint).toMatchObject({ type: "compaction", status: "completed" })
+      expect(s.requests[1].system.some((part) => part.text.includes("essential handoff facts"))).toBe(true)
+      expect(JSON.stringify(s.requests[2].messages)).toContain("Implement validation")
+      expect(JSON.stringify(s.requests[2].messages)).toContain("Reuse the existing parser")
+    })
+  }
+
+  scenario("compaction requested by a Promise context hook follows the prepared step", function* (s) {
+    s.currentModel = recoveryModel
+    yield* s.llm.push(TestLLM.textWithUsage("Research finished", "hook-research", 120_000))
+    yield* s.runPrompt("Research the change")
+    let requested = false
+    yield* installSessionPlugin(s, {
+      id: "context-compaction-probe",
+      async setup(ctx) {
+        await ctx.session.hook("context", async (event) => {
+          if (requested) return
+          requested = true
+          await ctx.session.compact({ sessionID: event.sessionID })
+        })
+      },
+    })
+    s.requests.length = 0
+    yield* s.llm.push(
+      TestLLM.text("The prepared step still ran", "before-hook-checkpoint"),
+      TestLLM.text("## Objective\n- Continue the task", "hook-checkpoint"),
+    )
+
+    yield* s.runPrompt("Continue the task")
+
+    expect(s.requests).toHaveLength(2)
+    expect(
+      (yield* s.messages)
+        .toReversed()
+        .filter((message) => message.type === "assistant" || message.type === "compaction"),
+    ).toMatchObject([
+      Expected.assistant({}, [Expected.text("Research finished")]),
+      Expected.assistant({}, [Expected.text("The prepared step still ran")]),
+      { type: "compaction", status: "completed" },
+    ])
   })
 
   scenario("preserves provider errors from manual compaction", function* (s) {
