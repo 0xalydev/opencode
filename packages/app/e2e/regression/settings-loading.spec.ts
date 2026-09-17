@@ -154,7 +154,12 @@ test("project settings open as a nested autosaving view", async ({ page }) => {
             settings.getByRole("heading", { name: "Settings demo", exact: true }),
             projectIcon,
             projectOptions,
-          ].map((item) => item.evaluate((element) => Math.round(element.getBoundingClientRect().top))),
+          ].map((item) =>
+            item.evaluate((element) => {
+              const bounds = element.getBoundingClientRect()
+              return Math.round(bounds.top + bounds.height / 2)
+            }),
+          ),
         ),
       ).size,
     )
@@ -169,7 +174,7 @@ test("project settings open as a nested autosaving view", async ({ page }) => {
         .evaluate((element) => element.getBoundingClientRect().top)
       return Math.round(general - back)
     })
-    .toBe(74)
+    .toBe(72)
   await projectOptions.click()
   const projectMenu = page.getByRole("menu")
   await expect(projectMenu.getByRole("menuitem")).toHaveText(["Clear notifications", "Close"])

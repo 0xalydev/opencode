@@ -78,7 +78,7 @@
 
 .settings-nav > .settings-back {
   position: relative;
-  inset-block-start: -22px;
+  inset-block-start: -20px;
   margin-block-end: 8px;
 }
 
@@ -375,10 +375,6 @@
   justify-content: space-between;
   gap: 16px;
   width: 100%;
-}
-
-.project-settings-header .settings-tab-header-row {
-  align-items: flex-start;
 }
 
 .settings-tab-title {

@@ -27,9 +27,9 @@ export const SettingsProjectGeneral: Component<{
 
   return (
     <>
-      <div class="settings-tab-header project-settings-header">
+      <div class="settings-tab-header">
         <div class="settings-tab-header-row">
-          <div class="flex min-w-0 items-start gap-3">
+          <div class="flex min-w-0 items-center gap-3">
             <ProjectIcon
               project={props.project}
               fallback={model.store.name || model.defaultName()}
