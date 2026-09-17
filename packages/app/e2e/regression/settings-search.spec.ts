@@ -251,6 +251,15 @@ test("Projects shows an add action in its empty state", async ({ page }) => {
   await expect(view.settings.getByText("Create your first project to get started", { exact: true })).toBeVisible()
   const emptyCard = view.settings.locator('[data-component="settings-project-empty-card"]')
   await expect(emptyCard).toHaveCSS("border-radius", "8px")
+  const emptyBackground = await emptyCard.evaluate((element) => {
+    const probe = document.createElement("div")
+    probe.style.background = "var(--v2-background-bg-base)"
+    element.append(probe)
+    const color = getComputedStyle(probe).backgroundColor
+    probe.remove()
+    return color
+  })
+  await expect(emptyCard).toHaveCSS("background-color", emptyBackground)
   const add = view.settings.getByRole("button", { name: "Add project", exact: true })
   await expect(add).toHaveCount(1)
   await add.click()
