@@ -10,7 +10,9 @@ import {
   LLMRequest,
   Message,
   type ContentPart,
+  type Usage,
 } from "@opencode/ai"
+import type { StreamOptions } from "@opencode/ai/route"
 import type { SessionCompactionResult } from "@opencode/plugin/effect/session"
 import { SessionError } from "@opencode/schema/session-error"
 import { Context, Effect, Layer, Stream } from "effect"
@@ -91,8 +93,33 @@ export type Settings = {
   tokens: number
 }
 
+export type NativeInput = {
+  /** The prepared compaction request, after model request hooks and route compatibility checks. */
+  readonly request: LLMRequest
+  readonly options: StreamOptions
+  /**
+   * Whole, real user messages from the durable transcript within the retained-token allowance.
+   * Mechanisms whose response carries only a checkpoint place it after these.
+   */
+  readonly retained: Effect.Effect<ReadonlyArray<Message>>
+}
+
+export type NativeResult = {
+  readonly replacement: ReadonlyArray<Message>
+  readonly usage?: Usage
+}
+
+/**
+ * Produces the provider's replacement window for a prepared request, or `undefined` when the
+ * route offers no mechanism this strategy handles. Core owns provenance, retries, overflow
+ * recovery, and persistence of the returned window.
+ */
+export type NativeStrategy = (input: NativeInput) => Effect.Effect<NativeResult, AIError> | undefined
+
 export type Editor = {
   configure: (settings: Partial<Settings>) => void
+  /** Later registrations take precedence over earlier ones. */
+  native: (strategy: NativeStrategy) => void
 }
 
 export type AutoInput = {
@@ -380,14 +407,17 @@ export const layer = Layer.effect(
     const llm = yield* LLMClient.Service
     const db = (yield* Database.Service).db
 
-    const state = State.create<Settings, Editor>({
+    const state = State.create<Settings & { readonly native: NativeStrategy[] }, Editor>({
       name: "session-compaction",
-      initial: () => ({ auto: true, buffer: DEFAULT_BUFFER, tokens: DEFAULT_KEEP_TOKENS }),
+      initial: () => ({ auto: true, buffer: DEFAULT_BUFFER, tokens: DEFAULT_KEEP_TOKENS, native: [] }),
       editor: (editor) => ({
         configure: (settings) => {
           if (settings.auto !== undefined) editor.auto = settings.auto
           if (settings.buffer !== undefined) editor.buffer = settings.buffer
           if (settings.tokens !== undefined) editor.tokens = settings.tokens
+        },
+        native: (strategy) => {
+          editor.native.push(strategy)
         },
       }),
     })
@@ -504,6 +534,20 @@ export const layer = Layer.effect(
         return yield* reject(
           "Provider compaction requires the endpoint in provider/model settings, not a model.request rewrite",
         )
+      // Model resolution admits provider policies only for routes with a compaction operation; a plugin
+      // still has to claim the mechanism, so a missing strategy is a configuration failure, not a defect.
+      const retained = original(context.session.id).pipe(
+        Effect.map((messages) => retainUsers(messages, context.model, state.get().tokens)),
+      )
+      const native = state
+        .get()
+        .native.toReversed()
+        .map((strategy) => strategy({ request, options: prepared.options, retained }))
+        .find((effect) => effect !== undefined)
+      if (!native)
+        return yield* reject(
+          `No plugin provides native compaction for ${request.model.provider}/${request.model.route.id}`,
+        )
       const transient = SessionRunnerRetry.transient(yield* SessionRunnerRetry.policy(context.session.id), {
         agent: context.agent.id,
         model: context.model.ref,
@@ -514,25 +558,7 @@ export const layer = Layer.effect(
         Effect.gen(function* () {
           // Transient provider failures retry like any other request; only a known automatic overflow permits
           // local recovery, and nothing is installed until the provider returns a checkpoint.
-          const result = yield* restore(
-            Effect.gen(function* () {
-              if (LLMClient.canCompact(request, { mechanism: "trigger" })) {
-                const retained = retainUsers(yield* original(context.session.id), context.model, state.get().tokens)
-                const result = yield* llm
-                  .compact(request, { ...prepared.options, mechanism: "trigger" })
-                  .pipe(transient)
-                return { replacement: [...retained, Message.assistant(result.checkpoint)], usage: result.usage }
-              }
-              if (LLMClient.canCompact(request))
-                return yield* llm
-                  .compact(request, { mechanism: "endpoint", http: prepared.options.http })
-                  .pipe(transient)
-              // Model resolution admits provider policies only for routes with a compaction operation.
-              return yield* Effect.die(
-                new Error(`${request.model.provider}/${request.model.route.id} has no compaction operation`),
-              )
-            }),
-          )
+          const result = yield* restore(native.pipe(transient))
           const usage = result.usage ? SessionUsage.record(result.usage, context.model.cost) : undefined
           if (usage)
             yield* bus.publish(SessionEvent.UsageRecorded, {
