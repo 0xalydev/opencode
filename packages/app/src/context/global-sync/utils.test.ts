@@ -1,4 +1,4 @@
-﻿import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "bun:test"
 import type {
   AgentListOutput,
   ModelDefaultOutput,
@@ -124,7 +124,7 @@ describe("normalizeProviderList", () => {
     // uses 0 as a sentinel for "unreleased" or "config-only" models. Mapping 0
     // to "1970-01-01" produces a valid DateTime in the visibility filter, which
     // then hides the model because 1970-01-01 is outside the recent 6-month
-    // window. Setting release_date to undefined instead triggers the
+    // window. Setting release_date to "" instead triggers the
     // unknown-date escape hatch in models.tsx and keeps the model visible.
     const result = normalizeProviderList(
       [{ id: "custom", name: "Custom", package: "@custom/provider" }] as ProviderListOutput["data"],
@@ -146,7 +146,7 @@ describe("normalizeProviderList", () => {
       undefined,
     )
 
-    expect(result.all.get("custom")?.models["my-model"]?.release_date).toBeUndefined()
+    expect(result.all.get("custom")?.models["my-model"]?.release_date).toBe("")
   })
 })
 
